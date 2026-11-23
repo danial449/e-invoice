@@ -1,0 +1,29 @@
+# ── Dependencies & build output ──
+node_modules/
+out/
+dist/
+release/
+.audit/*.cjs
+
+# ── Logs & local scratch ──
+*.log
+npm-debug.log*
+.playwright-mcp/
+*.png.tmp
+
+# ── Secrets & machine-local config ──
+# The database password is typed in the app and stored in the user's own
+# profile (%APPDATA%). Nothing with a real credential belongs in this repo.
+.env
+.env.*
+!.env.example
+dbconfig.json
+backup.json
+
+# ── Editor / OS ──
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini

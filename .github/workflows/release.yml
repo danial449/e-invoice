@@ -1,0 +1,54 @@
+name: Release
+
+# Publishes a Windows installer to GitHub Releases.
+#
+# Normal use: push a version tag and this does the rest.
+#   npm version patch   # bumps package.json, commits, tags v1.0.1
+#   git push --follow-tags
+#
+# The release is created as a draft so you can write the notes and check the
+# installer before anyone sees it, then press Publish on the Releases page.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Windows installer
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Build and publish the installer
+        run: npx electron-builder --win --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # No code-signing certificate, so skip the signing step rather than
+          # failing the build. Users will see a SmartScreen prompt on first run.
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+
+      - name: Attach the installer to the workflow run as well
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: release/*.exe
+          if-no-files-found: error
+          retention-days: 30
