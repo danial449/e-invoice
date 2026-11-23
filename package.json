@@ -1,6 +1,6 @@
 {
   "name": "packagingbox-invoice",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Inventory & Invoice system for Packaging Box Pakistan",
   "main": "out/main/index.js",
   "author": "Packaging Box Pakistan",
