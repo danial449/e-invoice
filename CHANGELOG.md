@@ -3,6 +3,17 @@
 All notable changes to PackagingBox Invoice. Versions follow
 [semantic versioning](https://semver.org): `MAJOR.MINOR.PATCH`.
 
+## [1.3.1] - 2026-11-24
+
+### Fixed
+
+- **Settings - Invoice defaults laid out badly.** The terms link fields had been
+  nested inside the notes/terms row, so they were squeezed into a third column
+  beside the two text boxes instead of sitting on their own line. The link now
+  has its own card, with the address and the wording side by side, help text
+  under each, and a preview strip showing exactly how the line will read on the
+  invoice - including when no address is set and no link is printed.
+
 ## [1.3.0] - 2026-11-24
 
 ### Added

@@ -355,41 +355,77 @@ export default function SettingsPage({ onDbChange }: Props): React.JSX.Element {
               <div className="row">
                 <div className="field">
                   <label>Default notes</label>
-                  <textarea value={settings.default_notes} onChange={(e) => set('default_notes', e.target.value)} />
+                  <textarea
+                    value={settings.default_notes}
+                    onChange={(e) => set('default_notes', e.target.value)}
+                    style={{ minHeight: 120 }}
+                  />
+                  <div className="help">A short line at the bottom of every new invoice.</div>
                 </div>
                 <div className="field">
                   <label>Default terms &amp; conditions</label>
                   <textarea
                     value={settings.default_terms}
                     onChange={(e) => set('default_terms', e.target.value)}
-                    style={{ minHeight: 110 }}
+                    style={{ minHeight: 120 }}
                   />
-                </div>
-                <div className="row">
-                  <div className="field" style={{ flex: 2 }}>
-                    <label>Link to your full terms &amp; conditions</label>
-                    <input
-                      value={settings.terms_url ?? ''}
-                      onChange={(e) => set('terms_url', e.target.value)}
-                      placeholder="https://packagingbox.pk/terms-and-conditions/"
-                    />
-                  </div>
-                  <div className="field">
-                    <label>Wording of the link</label>
-                    <input
-                      value={settings.terms_link_text ?? ''}
-                      onChange={(e) => set('terms_link_text', e.target.value)}
-                      placeholder="Terms & Conditions"
-                    />
-                  </div>
-                </div>
-                <div className="help" style={{ marginTop: -8, marginBottom: 12 }}>
-                  The invoice shows the wording as a link rather than the bare address, so it reads{' '}
-                  <em>{settings.terms_link_text?.trim() || 'Terms & Conditions'}</em> and stays
-                  clickable in the PDF. The list above is the summary; the link is the authority.
-                  Leave the address empty to hide the line.
+                  <div className="help">One per line. Printed as the summary on each invoice.</div>
                 </div>
               </div>
+            </div>
+
+            <div className="card">
+              <h3 className="card-title">
+                Link to your full terms
+                <span className="count">printed under the terms on every invoice</span>
+              </h3>
+              <div className="row">
+                <div className="field" style={{ flex: 2 }}>
+                  <label>Web address</label>
+                  <input
+                    value={settings.terms_url ?? ''}
+                    onChange={(e) => set('terms_url', e.target.value)}
+                    placeholder="https://packagingbox.pk/terms-and-conditions/"
+                  />
+                  <div className="help">Leave empty to print no link at all.</div>
+                </div>
+                <div className="field">
+                  <label>Wording shown</label>
+                  <input
+                    value={settings.terms_link_text ?? ''}
+                    onChange={(e) => set('terms_link_text', e.target.value)}
+                    placeholder="Terms & Conditions"
+                  />
+                  <div className="help">Defaults to &ldquo;Terms &amp; Conditions&rdquo;.</div>
+                </div>
+              </div>
+
+              {settings.terms_url?.trim() ? (
+                <div className="preview-strip">
+                  <span className="preview-strip-label">On the invoice</span>
+                  <span className="preview-strip-body">
+                    Full terms &amp; conditions:{' '}
+                    <a
+                      href={settings.terms_url}
+                      onClick={(e) => {
+                        e.preventDefault()
+                        void api.openExternal(settings.terms_url).catch(() => {})
+                      }}
+                    >
+                      {settings.terms_link_text?.trim() || 'Terms & Conditions'}
+                    </a>
+                  </span>
+                </div>
+              ) : (
+                <div className="banner info mb0">
+                  No link is printed while the address is empty. The terms above are still shown.
+                </div>
+              )}
+
+              <p className="small muted mb0 mt8">
+                The wording is printed as the link rather than the bare address, and stays clickable
+                in the PDF. The terms above are the summary; this page is the authority.
+              </p>
             </div>
           </>
         ) : null}
