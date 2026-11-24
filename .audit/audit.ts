@@ -912,6 +912,254 @@ async function main(): Promise<void> {
     eq(Number.isInteger(after.total), true, `total ${after.total} should be whole`)
   })
 
+  // ----------- 14. WooCommerce import & unlimited stock -----------
+  g('WooCommerce export import')
+
+  // A realistic WooCommerce product export: simple rows, a variable parent and
+  // its variations, plus the dozens of columns WooCommerce always writes.
+  const WOO_HEADERS = [
+    'ID', 'Type', 'SKU', 'Name', 'Published', 'Is featured?', 'Visibility in catalogue',
+    'Short description', 'Description', 'Tax status', 'Tax class', 'In stock?', 'Stock',
+    'Low stock amount', 'Backorders allowed?', 'Sold individually?', 'Weight (kg)',
+    'Length (cm)', 'Width (cm)', 'Height (cm)', 'Allow customer reviews?', 'Purchase note',
+    'Sale price', 'Regular price', 'Categories', 'Tags', 'Shipping class', 'Images', 'Parent',
+    'Attribute 1 name', 'Attribute 1 value(s)', 'Attribute 1 visible', 'Attribute 1 global'
+  ]
+  const wooRow = (v: Record<string, string>): string[] => WOO_HEADERS.map((h) => v[h] ?? '')
+
+  const wooPath = path.join(tmp, 'woo.csv')
+  const wooRows: string[][] = [
+    WOO_HEADERS,
+    wooRow({ ID: '10', Type: 'simple', SKU: 'WOO-SIMPLE', Name: 'Woo Kraft Bowl', Published: '1',
+      'In stock?': '1', Stock: '250', 'Low stock amount': '40', 'Regular price': '45',
+      Categories: 'Food Packaging > Kraft Bowls', 'Tax status': 'taxable', Description: 'A bowl' }),
+    wooRow({ ID: '11', Type: 'simple', SKU: 'WOO-UNLIM', Name: 'Woo Printed Sticker Roll',
+      Published: '1', 'In stock?': '1', Stock: '', 'Regular price': '1200',
+      Categories: 'Food Packaging', 'Tax status': 'taxable' }),
+    wooRow({ ID: '12', Type: 'simple', SKU: 'WOO-OOS', Name: 'Woo Discontinued Tray',
+      Published: '1', 'In stock?': '0', Stock: '', 'Regular price': '300' }),
+    wooRow({ ID: '13', Type: 'simple', SKU: 'WOO-SALE', Name: 'Woo Sale Pouch', Published: '1',
+      'In stock?': '1', Stock: '60', 'Regular price': '500', 'Sale price': '399' }),
+    wooRow({ ID: '14', Type: 'simple', SKU: 'WOO-DRAFT', Name: 'Woo Draft Item', Published: '-1',
+      'In stock?': '1', Stock: '5', 'Regular price': '10' }),
+    wooRow({ ID: '100', Type: 'variable', SKU: 'WOO-BOX', Name: 'Woo Cake Box', Published: '1',
+      'In stock?': '1', Categories: 'Bakery Packaging > Cake Boxes',
+      'Attribute 1 name': 'Colour', 'Attribute 1 value(s)': 'Red | Blue' }),
+    wooRow({ ID: '101', Type: 'variation', SKU: 'WOO-BOX-RED', Name: 'Woo Cake Box',
+      Published: '1', 'In stock?': '1', Stock: '80', 'Regular price': '90', Parent: 'id:100',
+      'Attribute 1 name': 'Colour', 'Attribute 1 value(s)': 'Red' }),
+    wooRow({ ID: '102', Type: 'variation', SKU: 'WOO-BOX-BLUE', Name: '',
+      Published: '1', 'In stock?': '1', Stock: '', 'Regular price': '95', Parent: 'id:100',
+      'Attribute 1 name': 'Colour', 'Attribute 1 value(s)': 'Blue' }),
+    wooRow({ ID: '200', Type: 'variable', SKU: 'WOO-LONELY', Name: 'Woo Lonely Variable',
+      Published: '1', 'In stock?': '1', 'Regular price': '700' })
+  ]
+  const csvEscape = (c: string): string =>
+    /["',\r\n]/.test(c) ? '"' + c.replace(/"/g, '""') + '"' : c
+  fs.writeFileSync(wooPath, wooRows.map((r) => r.map(csvEscape).join(',')).join('\n'), 'utf8')
+
+  let wooMapping: Record<string, string> = {}
+  const wooOpts = (extra: Record<string, unknown>): never =>
+    ({
+      mapping: wooMapping, matchBy: 'sku', onDuplicate: 'update',
+      createCategories: false, derivePrices: false, defaultPackSize: 1,
+      unknownStock: 'unlimited', variableParents: 'skip', ...extra
+    }) as never
+  const findBySku = async (sku: string): Promise<Record<string, never> | undefined> => {
+    const rows = (await products.listProducts({ search: sku, activeOnly: false })).rows
+    return rows.find((r) => r.sku === sku) as never
+  }
+
+  await check('WooCommerce headers are mapped to the right fields', () => {
+    const pv = csv.previewCsv(wooPath)
+    wooMapping = pv.suggestedMapping as Record<string, string>
+    eq(wooMapping['Type'], 'wc_type', 'Type must not be read as a category')
+    eq(wooMapping['ID'], 'wc_id')
+    eq(wooMapping['Parent'], 'wc_parent')
+    eq(wooMapping['SKU'], 'sku')
+    eq(wooMapping['Name'], 'name')
+    eq(wooMapping['Regular price'], 'unit_price')
+    eq(wooMapping['Sale price'], 'sale_price')
+    eq(wooMapping['Stock'], 'stock_qty')
+    eq(wooMapping['In stock?'], 'in_stock')
+    eq(wooMapping['Categories'], 'category')
+    eq(wooMapping['Published'], 'published')
+  })
+
+  await check('WooCommerce noise columns are ignored, not mis-matched', () => {
+    for (const h of ['Tax status', 'Tax class', 'Is featured?', 'Images', 'Tags',
+      'Attribute 1 name', 'Attribute 1 value(s)', 'Attribute 1 visible',
+      'Shipping class', 'Purchase note', 'Backorders allowed?']) {
+      eq(wooMapping[h], 'ignore', h + ' should be ignored')
+    }
+  })
+
+  await check('the export is recognised and its row types counted', async () => {
+    const r = await csv.importProducts(wooPath, wooOpts({ createCategories: true }))
+    ok(r.errors.length === 0, 'errors: ' + JSON.stringify(r.errors))
+    ok(!!r.woocommerce?.detected, 'detected as WooCommerce')
+    eq(r.woocommerce!.simple, 5, 'simple rows')
+    eq(r.woocommerce!.variations, 2, 'variation rows')
+    eq(r.woocommerce!.variableParents, 2, 'variable parents seen')
+    eq(r.woocommerce!.parentsSkipped, 1, 'the parent with variations was skipped')
+  })
+
+  await check('the variable parent that had variations was not imported', async () => {
+    ok(!(await findBySku('WOO-BOX')), 'container product not created')
+  })
+
+  await check('a variable parent with no variations is still imported', async () => {
+    ok(!!(await findBySku('WOO-LONELY')), 'lonely parent kept, not lost')
+  })
+
+  await check('variations are named from their attributes', async () => {
+    const red = await findBySku('WOO-BOX-RED')
+    ok(!!red, 'red variation imported')
+    ok(/Red/.test(String(red!.name)), 'name should mention Red, got ' + String(red!.name))
+    eq(String(red!.color), 'Red', 'colour attribute captured')
+    const blue = await findBySku('WOO-BOX-BLUE')
+    ok(/Blue/.test(String(blue!.name)), 'blank name inherited parent, got ' + String(blue!.name))
+  })
+
+  await check('a variation inherits its parent category', async () => {
+    const red = await findBySku('WOO-BOX-RED')
+    ok(red!.category_id !== null, 'category inherited from the variable parent')
+  })
+
+  await check('blank stock with stock management off becomes unlimited', async () => {
+    eq((await findBySku('WOO-UNLIM'))!.track_stock as unknown as boolean, false, 'unlimited')
+    eq((await findBySku('WOO-BOX-BLUE'))!.track_stock as unknown as boolean, false, 'variation too')
+  })
+
+  await check('a row marked out of stock imports as zero, still tracked', async () => {
+    const p2 = await findBySku('WOO-OOS')
+    eq(p2!.track_stock as unknown as boolean, true, 'tracked')
+    eq(Number(p2!.stock_qty), 0, 'zero')
+  })
+
+  await check('a real stock figure is kept, with the low-stock amount as reorder level', async () => {
+    const p2 = await findBySku('WOO-SIMPLE')
+    eq(p2!.track_stock as unknown as boolean, true)
+    eq(Number(p2!.stock_qty), 250)
+    eq(Number(p2!.reorder_level), 40)
+  })
+
+  await check('a sale price overrides the regular price', async () => {
+    near(Number((await findBySku('WOO-SALE'))!.unit_price), 399, 'sale price used')
+  })
+
+  await check('an unpublished product imports as inactive', async () => {
+    eq((await findBySku('WOO-DRAFT'))!.is_active as unknown as boolean, false)
+  })
+
+  await check('"unlimited when blank or zero" turns a zero into unlimited', async () => {
+    const r = await csv.importProducts(wooPath, wooOpts({ unknownStock: 'unlimited-if-zero' }))
+    ok(r.errors.length === 0, 'errors: ' + JSON.stringify(r.errors))
+    eq((await findBySku('WOO-OOS'))!.track_stock as unknown as boolean, false, 'zero became unlimited')
+  })
+
+  await check('"set to 0" keeps everything tracked', async () => {
+    await csv.importProducts(wooPath, wooOpts({ unknownStock: 'zero' }))
+    const p2 = await findBySku('WOO-UNLIM')
+    eq(p2!.track_stock as unknown as boolean, true, 'tracked')
+    eq(Number(p2!.stock_qty), 0)
+  })
+
+  await check('the variable parent can be imported too when asked', async () => {
+    const r = await csv.importProducts(wooPath, wooOpts({ variableParents: 'import' }))
+    eq(r.woocommerce!.parentsSkipped, 0, 'nothing skipped')
+    ok(!!(await findBySku('WOO-BOX')), 'parent imported on request')
+  })
+
+  // ----------- unlimited stock behaviour -----------
+  g('Unlimited stock')
+
+  let unlimitedId = 0
+  await check('a product can be created with unlimited stock', async () => {
+    const pr = await products.createProduct(blankProduct({
+      sku: 'AUD-UNLIM', name: 'Audit Made To Order', unit_price: 250,
+      track_stock: false, stock_qty: 999, reorder_level: 50
+    }))
+    unlimitedId = pr.id
+    eq(pr.track_stock, false)
+    eq(Number(pr.stock_qty), 0, 'no quantity is kept')
+  })
+
+  await check('an invoice does not deduct unlimited stock', async () => {
+    const inv = await invoices.saveInvoice({
+      invoice_date: '2026-03-01', due_date: null, customer_id: null, template_id: null,
+      po_number: '', discount_type: 'amount', discount_value: 0, tax_enabled: false,
+      shipping: 0, round_off: 0, paid_amount: 0, status: 'issued', notes: '', terms: '',
+      items: [item({ product_id: unlimitedId, name: 'Audit Made To Order', qty: 40, unit_price: 250 })]
+    } as never)
+    eq(Number((await products.getProduct(unlimitedId))!.stock_qty), 0, 'still zero, not -40')
+    eq((await products.listStockMovements(unlimitedId)).length, 0, 'no misleading movement written')
+    await invoices.deleteInvoice(inv.id)
+  })
+
+  await check('adjusting stock on an unlimited product is refused clearly', async () => {
+    try {
+      await products.adjustStock({ productId: unlimitedId, changeQty: 10, kind: 'purchase' })
+      throw new Error('adjustment was accepted')
+    } catch (e) {
+      const m = String(e)
+      ok(!/was accepted/.test(m), 'should refuse')
+      ok(/unlimited/i.test(m), 'message should explain why, got: ' + m)
+    }
+  })
+
+  await check('unlimited products are never low or out of stock', async () => {
+    const low = await products.listProducts({ stockFilter: 'low' })
+    const out = await products.listProducts({ stockFilter: 'out' })
+    ok(!low.rows.some((x) => x.id === unlimitedId), 'not low')
+    ok(!out.rows.some((x) => x.id === unlimitedId), 'not out')
+    const inStock = await products.listProducts({ stockFilter: 'in' })
+    ok(inStock.rows.some((x) => x.id === unlimitedId), 'counts as available')
+  })
+
+  await check('the dashboard leaves unlimited products out of alerts', async () => {
+    const d = await reports.getDashboardStats()
+    ok(!d.lowStockProducts.some((x) => x.id === unlimitedId), 'not listed as low')
+    ok(Number.isFinite(d.stockValue), 'stock value still computes')
+  })
+
+  await check('turning tracking back on uses the figure entered then', async () => {
+    const pr = await products.updateProduct(unlimitedId, blankProduct({
+      sku: 'AUD-UNLIM', name: 'Audit Made To Order', unit_price: 250,
+      track_stock: true, stock_qty: 15, reorder_level: 5
+    }))
+    eq(pr.track_stock, true)
+    eq(Number(pr.stock_qty), 15)
+  })
+
+  // ----------- payment band colours -----------
+  g('Payment band colours')
+
+  await check('band colours come from the template, not hardcoded', async () => {
+    const html = await renderWith(partialId, (c) => {
+      const t = (c as Record<string, Record<string, unknown>>).totals
+      t.paidColor = '#123456'
+      t.partialColor = '#abcdef'
+      t.unpaidColor = '#654321'
+      t.paymentTint = 20
+    })
+    ok(html.includes('#abcdef'), 'the chosen partial colour is used')
+    ok(/\.pay-partial \.pay-badge \{ color: #abcdef; \}/.test(html), 'badge text colour')
+    ok(/rgba\(171, 205, 239, 0\.200\)/.test(html), 'background tinted from the same colour')
+  })
+
+  await check('a template without colours still renders the defaults', async () => {
+    const html = await renderWith(partialId, (c) => {
+      const t = (c as Record<string, Record<string, unknown>>).totals
+      delete t.paidColor
+      delete t.partialColor
+      delete t.unpaidColor
+      delete t.paymentTint
+    })
+    ok(html.includes('#b45309'), 'default partial colour')
+    ok(html.includes('PARTIALLY PAID'), 'band still renders')
+  })
+
   // ═══════════ teardown ═══════════
   await disconnect()
   await admin.query(

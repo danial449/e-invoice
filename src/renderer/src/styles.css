@@ -502,6 +502,11 @@ table.data td.actions {
   background: var(--ok-soft);
   color: #4ade80;
 }
+.badge.unlimited {
+  background: rgba(59, 130, 246, 0.14);
+  color: #7dadff;
+  white-space: nowrap;
+}
 
 .stat-grid {
   display: grid;

@@ -123,6 +123,15 @@ async function applyStock(client: PoolClient, invoiceId: number, invoiceNo: stri
     if (!item.product_id) continue
     const pieces = linePieces(item)
     if (pieces === 0) continue
+
+    // Unlimited-stock products keep no quantity, so an invoice must not move
+    // one — and must not write a movement implying it did.
+    const tracked = await client.query<{ track_stock: boolean }>(
+      'SELECT track_stock FROM products WHERE id = $1',
+      [item.product_id]
+    )
+    if (tracked.rows[0] && tracked.rows[0].track_stock === false) continue
+
     const delta = round3(-direction * pieces) // direction 1 = sale (stock down)
     await client.query('UPDATE products SET stock_qty = stock_qty + $1, updated_at = now() WHERE id = $2', [
       delta,

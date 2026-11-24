@@ -24,6 +24,7 @@ const EMPTY_PRODUCT: ProductInput = {
   tax_rate: 0,
   stock_qty: 0,
   reorder_level: 0,
+  track_stock: true,
   is_active: true
 }
 
@@ -288,8 +289,10 @@ export default function Products({ navigate }: NavProps): React.JSX.Element {
                 </thead>
                 <tbody>
                   {rows.map((p) => {
-                    const out = num(p.stock_qty) <= 0
-                    const low = !out && num(p.reorder_level) > 0 && num(p.stock_qty) <= num(p.reorder_level)
+                    const unlimited = p.track_stock === false
+                    const out = !unlimited && num(p.stock_qty) <= 0
+                    const low =
+                      !unlimited && !out && num(p.reorder_level) > 0 && num(p.stock_qty) <= num(p.reorder_level)
                     return (
                       <tr key={p.id}>
                         <td>
@@ -316,14 +319,22 @@ export default function Products({ navigate }: NavProps): React.JSX.Element {
                           {p.pack_size > 1 ? formatMoney(p.pack_price, sym) : '—'}
                         </td>
                         <td className="num nowrap">
-                          <span className={`badge ${out ? 'out' : low ? 'low' : 'ok'}`}>
-                            {formatQty(p.stock_qty)}
-                          </span>
+                          {unlimited ? (
+                            <span className="badge unlimited" title="Stock is not tracked for this product">
+                              ∞ unlimited
+                            </span>
+                          ) : (
+                            <span className={`badge ${out ? 'out' : low ? 'low' : 'ok'}`}>
+                              {formatQty(p.stock_qty)}
+                            </span>
+                          )}
                         </td>
                         <td className="actions">
-                          <button className="btn-ghost btn-xs" title="Adjust stock" onClick={() => setAdjusting(p)}>
-                            ⇅
-                          </button>
+                          {unlimited ? null : (
+                            <button className="btn-ghost btn-xs" title="Adjust stock" onClick={() => setAdjusting(p)}>
+                              ⇅
+                            </button>
+                          )}
                           <button
                             className="btn-ghost btn-xs"
                             title="Stock history"
@@ -445,6 +456,7 @@ function ProductEditor({
           tax_rate: product.tax_rate,
           stock_qty: product.stock_qty,
           reorder_level: product.reorder_level,
+          track_stock: product.track_stock !== false,
           is_active: product.is_active
         }
       : { ...EMPTY_PRODUCT }
@@ -665,28 +677,45 @@ function ProductEditor({
         </div>
       </div>
 
-      <div className="row">
-        <div className="field">
-          <label>Stock on hand (pieces)</label>
+      <div className="field">
+        <label className="inline-check">
           <input
-            type="number"
-            step="0.001"
-            value={form.stock_qty}
-            onChange={(e) => set('stock_qty', parseFloat(e.target.value) || 0)}
+            type="checkbox"
+            checked={form.track_stock === false}
+            onChange={(e) => set('track_stock', !e.target.checked)}
           />
-          {product ? <div className="help">Changing this records a stock adjustment.</div> : null}
-        </div>
-        <div className="field">
-          <label>Reorder level (pieces)</label>
-          <input
-            type="number"
-            step="0.001"
-            value={form.reorder_level}
-            onChange={(e) => set('reorder_level', parseFloat(e.target.value) || 0)}
-          />
-          <div className="help">Flagged as low stock at or below this.</div>
+          <span>Unlimited stock — do not track a quantity</span>
+        </label>
+        <div className="help">
+          For made-to-order items or anything you can always get hold of. Invoices
+          will not deduct stock, and it is never reported as low or out of stock.
         </div>
       </div>
+
+      {form.track_stock === false ? null : (
+        <div className="row">
+          <div className="field">
+            <label>Stock on hand (pieces)</label>
+            <input
+              type="number"
+              step="0.001"
+              value={form.stock_qty}
+              onChange={(e) => set('stock_qty', parseFloat(e.target.value) || 0)}
+            />
+            {product ? <div className="help">Changing this records a stock adjustment.</div> : null}
+          </div>
+          <div className="field">
+            <label>Reorder level (pieces)</label>
+            <input
+              type="number"
+              step="0.001"
+              value={form.reorder_level}
+              onChange={(e) => set('reorder_level', parseFloat(e.target.value) || 0)}
+            />
+            <div className="help">Flagged as low stock at or below this.</div>
+          </div>
+        </div>
+      )}
 
       <div className="field">
         <label>Description / notes</label>

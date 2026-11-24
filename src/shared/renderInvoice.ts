@@ -29,6 +29,23 @@ function multiline(s: unknown): string {
   return escapeHtml(s).replace(/\r?\n/g, '<br>')
 }
 
+/**
+ * A translucent version of a colour, for tinting a band's background.
+ * Falls back to the colour itself if it is not a plain hex value, so a named
+ * or rgb() colour still renders rather than breaking the stylesheet.
+ */
+function tint(color: string, percent: number): string {
+  const m = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(String(color ?? '').trim())
+  if (!m) return color
+  let hex = m[1]
+  if (hex.length === 3) hex = hex.split('').map((ch) => ch + ch).join('')
+  const r = parseInt(hex.slice(0, 2), 16)
+  const g = parseInt(hex.slice(2, 4), 16)
+  const b = parseInt(hex.slice(4, 6), 16)
+  const a = Math.min(1, Math.max(0, percent / 100))
+  return `rgba(${r}, ${g}, ${b}, ${a.toFixed(3)})`
+}
+
 function formatDate(d: string | null | undefined): string {
   if (!d) return ''
   // Values arrive as YYYY-MM-DD; format without constructing a Date so the
@@ -513,6 +530,13 @@ function renderStyles(ctx: RenderContext): string {
   const f = c.font
   const col = c.colors
 
+  // Payment status band colours, with sensible defaults when a template
+  // predates them.
+  const payPaid = c.totals.paidColor || '#15803d'
+  const payPartial = c.totals.partialColor || '#b45309'
+  const payUnpaid = c.totals.unpaidColor || '#b91c1c'
+  const payTint = Math.min(100, Math.max(0, c.totals.paymentTint ?? 8))
+
   const borderAll = c.table.borders === 'all'
   const borderH = c.table.borders === 'horizontal'
 
@@ -691,9 +715,18 @@ function renderStyles(ctx: RenderContext): string {
     font-size: ${Math.max(6, f.baseSize - 0.5)}pt;
     page-break-inside: avoid;
   }
-  .pay-summary.pay-paid { border-left-color: #15803d; }
-  .pay-summary.pay-partial { border-left-color: #b45309; }
-  .pay-summary.pay-unpaid { border-left-color: #b91c1c; }
+  .pay-summary.pay-paid {
+    border-left-color: ${payPaid};
+    background: ${tint(payPaid, payTint)};
+  }
+  .pay-summary.pay-partial {
+    border-left-color: ${payPartial};
+    background: ${tint(payPartial, payTint)};
+  }
+  .pay-summary.pay-unpaid {
+    border-left-color: ${payUnpaid};
+    background: ${tint(payUnpaid, payTint)};
+  }
   .pay-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
   .pay-badge {
     font-weight: 800;
@@ -701,9 +734,9 @@ function renderStyles(ctx: RenderContext): string {
     font-size: ${Math.max(6, f.baseSize - 1)}pt;
     white-space: nowrap;
   }
-  .pay-paid .pay-badge { color: #15803d; }
-  .pay-partial .pay-badge { color: #b45309; }
-  .pay-unpaid .pay-badge { color: #b91c1c; }
+  .pay-paid .pay-badge { color: ${payPaid}; }
+  .pay-partial .pay-badge { color: ${payPartial}; }
+  .pay-unpaid .pay-badge { color: ${payUnpaid}; }
   .pay-detail { color: ${f.color}; }
   .pay-lines { width: 100%; border-collapse: collapse; margin-top: 5px; }
   .pay-lines td {

@@ -176,6 +176,11 @@ CREATE INDEX IF NOT EXISTS idx_payments_invoice ON payments(invoice_id);
 -- idempotent, so this runs harmlessly on every connect.
 ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS terms_url TEXT DEFAULT '';
 
+-- Products that are made to order or bought in on demand have no meaningful
+-- stock figure. track_stock = FALSE means "unlimited": never deducted by an
+-- invoice, never counted as low or out of stock.
+ALTER TABLE products ADD COLUMN IF NOT EXISTS track_stock BOOLEAN NOT NULL DEFAULT TRUE;
+
 INSERT INTO company_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
-INSERT INTO app_meta (key, value) VALUES ('schema_version','2') ON CONFLICT (key) DO UPDATE SET value = '2';
+INSERT INTO app_meta (key, value) VALUES ('schema_version','3') ON CONFLICT (key) DO UPDATE SET value = '3';
 `

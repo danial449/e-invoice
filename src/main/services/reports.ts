@@ -12,9 +12,10 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     `SELECT
        count(*)::int AS product_count,
        count(*) FILTER (WHERE is_active)::int AS active_product_count,
-       count(*) FILTER (WHERE is_active AND stock_qty > 0 AND reorder_level > 0 AND stock_qty <= reorder_level)::int AS low_stock,
-       count(*) FILTER (WHERE is_active AND stock_qty <= 0)::int AS out_of_stock,
-       coalesce(sum(stock_qty * CASE WHEN cost_price > 0 THEN cost_price ELSE unit_price END), 0)::numeric AS stock_value
+       count(*) FILTER (WHERE is_active AND track_stock AND stock_qty > 0 AND reorder_level > 0 AND stock_qty <= reorder_level)::int AS low_stock,
+       count(*) FILTER (WHERE is_active AND track_stock AND stock_qty <= 0)::int AS out_of_stock,
+       coalesce(sum(stock_qty * CASE WHEN cost_price > 0 THEN cost_price ELSE unit_price END)
+                FILTER (WHERE track_stock), 0)::numeric AS stock_value
      FROM products`
   )
 
@@ -50,6 +51,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     `SELECT p.*, c.name AS category_name
      FROM products p LEFT JOIN categories c ON c.id = p.category_id
      WHERE p.is_active = TRUE
+       AND p.track_stock
        AND (p.stock_qty <= 0 OR (p.reorder_level > 0 AND p.stock_qty <= p.reorder_level))
      ORDER BY p.stock_qty ASC, p.name
      LIMIT 10`

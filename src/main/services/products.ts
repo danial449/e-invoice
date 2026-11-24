@@ -54,14 +54,16 @@ export async function listProducts(
   }
 
   switch (f.stockFilter) {
+    // Unlimited-stock products have no quantity worth filtering on, so they
+    // are never "low" or "out", and always count as available.
     case 'out':
-      where.push('p.stock_qty <= 0')
+      where.push('p.track_stock AND p.stock_qty <= 0')
       break
     case 'low':
-      where.push('p.stock_qty > 0 AND p.reorder_level > 0 AND p.stock_qty <= p.reorder_level')
+      where.push('p.track_stock AND p.stock_qty > 0 AND p.reorder_level > 0 AND p.stock_qty <= p.reorder_level')
       break
     case 'in':
-      where.push('p.stock_qty > 0')
+      where.push('(NOT p.track_stock OR p.stock_qty > 0)')
       break
     default:
       break
@@ -132,8 +134,11 @@ function normalizeInput(input: ProductInput): ProductInput {
     pack_price: prices.pack_price,
     cost_price: num(input.cost_price),
     tax_rate: num(input.tax_rate),
-    stock_qty: round3(num(input.stock_qty)),
-    reorder_level: round3(num(input.reorder_level))
+    // Unlimited stock keeps no quantity at all, so zero it rather than leaving
+    // a stale figure that would reappear if tracking is turned back on.
+    track_stock: input.track_stock !== false,
+    stock_qty: input.track_stock === false ? 0 : round3(num(input.stock_qty)),
+    reorder_level: input.track_stock === false ? 0 : round3(num(input.reorder_level))
   }
 }
 
@@ -145,17 +150,18 @@ export async function createProduct(input: ProductInput): Promise<Product> {
     const { rows } = await client.query<Product>(
       `INSERT INTO products
          (sku, name, description, category_id, size_text, material, color, unit,
-          pack_size, unit_price, pack_price, cost_price, tax_rate, stock_qty, reorder_level, is_active)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+          pack_size, unit_price, pack_price, cost_price, tax_rate, stock_qty, reorder_level,
+          track_stock, is_active)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
        RETURNING *`,
       [
         p.sku, p.name, p.description ?? '', p.category_id, p.size_text ?? '', p.material ?? '',
         p.color ?? '', p.unit || 'pcs', p.pack_size, p.unit_price, p.pack_price, p.cost_price,
-        p.tax_rate, p.stock_qty, p.reorder_level, p.is_active !== false
+        p.tax_rate, p.stock_qty, p.reorder_level, p.track_stock !== false, p.is_active !== false
       ]
     )
     const created = rows[0]
-    if (p.stock_qty !== 0) {
+    if (p.stock_qty !== 0 && p.track_stock !== false) {
       await client.query(
         `INSERT INTO stock_movements (product_id, change_qty, kind, reference, note)
          VALUES ($1,$2,'opening','', 'Opening stock on product creation')`,
@@ -181,17 +187,17 @@ export async function updateProduct(id: number, input: ProductInput): Promise<Pr
       `UPDATE products SET
          sku=$1, name=$2, description=$3, category_id=$4, size_text=$5, material=$6, color=$7,
          unit=$8, pack_size=$9, unit_price=$10, pack_price=$11, cost_price=$12, tax_rate=$13,
-         stock_qty=$14, reorder_level=$15, is_active=$16, updated_at=now()
-       WHERE id=$17 RETURNING *`,
+         stock_qty=$14, reorder_level=$15, track_stock=$16, is_active=$17, updated_at=now()
+       WHERE id=$18 RETURNING *`,
       [
         p.sku, p.name, p.description ?? '', p.category_id, p.size_text ?? '', p.material ?? '',
         p.color ?? '', p.unit || 'pcs', p.pack_size, p.unit_price, p.pack_price, p.cost_price,
-        p.tax_rate, p.stock_qty, p.reorder_level, p.is_active !== false, id
+        p.tax_rate, p.stock_qty, p.reorder_level, p.track_stock !== false, p.is_active !== false, id
       ]
     )
 
     const delta = round3(p.stock_qty - num(prev.rows[0].stock_qty))
-    if (delta !== 0) {
+    if (delta !== 0 && p.track_stock !== false) {
       await client.query(
         `INSERT INTO stock_movements (product_id, change_qty, kind, reference, note)
          VALUES ($1,$2,'adjustment','','Stock edited on product form')`,
@@ -238,6 +244,18 @@ export async function adjustStock(args: {
   if (delta === 0) throw new Error('Enter a non-zero quantity.')
 
   return withTransaction(async (client) => {
+    const check = await client.query<{ track_stock: boolean; name: string }>(
+      'SELECT track_stock, name FROM products WHERE id = $1',
+      [args.productId]
+    )
+    if (check.rowCount === 0) throw new Error('Product not found.')
+    if (check.rows[0].track_stock === false) {
+      throw new Error(
+        `"${check.rows[0].name}" is set to unlimited stock, so there is no quantity to adjust. ` +
+          'Turn off unlimited stock on the product first.'
+      )
+    }
+
     const { rows } = await client.query<Product>(
       'UPDATE products SET stock_qty = stock_qty + $1, updated_at = now() WHERE id = $2 RETURNING *',
       [delta, args.productId]

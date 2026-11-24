@@ -3,6 +3,48 @@
 All notable changes to PackagingBox Invoice. Versions follow
 [semantic versioning](https://semver.org): `MAJOR.MINOR.PATCH`.
 
+## [1.2.0] - 2026-11-24
+
+### Added
+
+- **WooCommerce / WordPress product exports import as-is.** A CSV exported
+  straight out of WooCommerce is recognised and its columns matched by their
+  exact names, so `Type`, `Parent`, `In stock?`, `Regular price`, `Sale price`,
+  `Low stock amount` and the dimension columns all land correctly. The forty-odd
+  columns the app cannot use are ignored rather than guessed at.
+  - **Variable products** are handled properly: the variations carry the real
+    SKU, price and stock, so they are imported and the empty parent container is
+    skipped. A parent whose variations are absent from the file is still
+    imported, so nothing is lost. Importing the parent as well is an option.
+  - **Variations are named from their attributes**, turning three identically
+    named rows into `Cake Box - Red`, `Cake Box - Blue` and `Cake Box - Gold`.
+    Colour, Size and Material attributes also fill those fields on the product.
+  - A variation inherits its parent's description and category, as WooCommerce
+    does.
+  - A **sale price** overrides the regular price, since that is what the
+    customer pays. Unpublished products import as inactive.
+- **Unlimited stock.** A product can be marked as not counted: invoices never
+  deduct it, it is never reported as low or out of stock, it shows as
+  **unlimited** in the list, and the stock-adjust button is hidden. Meant for
+  made-to-order work, plate and design charges, and anything always available.
+- **The import decides what "no stock figure" means.** WooCommerce leaves
+  `Stock` blank when stock management is off, which means always available
+  rather than none left. Choose between marking those products unlimited (the
+  default), treating blank *and* zero as unlimited, or setting everything to 0.
+  The summary at the end says how many came in as unlimited.
+- **The payment status band colours can be chosen.** Separate colours for paid,
+  partially paid and unpaid, plus a slider for how strongly the band is tinted.
+  The colour drives the badge text, the left edge and the background together.
+
+### Fixed
+
+- A plain `Stock` or `In Stock` column in a hand-made sheet is read as a
+  quantity again. WooCommerce's `In stock?` flag normalises to the same text, so
+  the two are now told apart by exact column name rather than by stripping
+  punctuation.
+- `Tax status` is no longer mistaken for a tax rate, and `Attribute 1 name` is
+  no longer mistaken for the product name.
+
 ## [1.1.0] — 2026-11-23
 
 ### Added

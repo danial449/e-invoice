@@ -507,6 +507,33 @@ export default function TemplateDesigner(_props: NavProps): React.JSX.Element {
               onChange={(v) => patch('totals', { showPaymentSummary: v })}
               help="Prints PAID IN FULL / PARTIALLY PAID / UNPAID with the method and date."
             />
+            {config.totals.showPaymentSummary !== false ? (
+              <>
+                <ColorField
+                  label="Paid in full colour"
+                  value={config.totals.paidColor ?? '#15803d'}
+                  onChange={(v) => patch('totals', { paidColor: v })}
+                />
+                <ColorField
+                  label="Partially paid colour"
+                  value={config.totals.partialColor ?? '#b45309'}
+                  onChange={(v) => patch('totals', { partialColor: v })}
+                />
+                <ColorField
+                  label="Unpaid colour"
+                  value={config.totals.unpaidColor ?? '#b91c1c'}
+                  onChange={(v) => patch('totals', { unpaidColor: v })}
+                />
+                <Slider
+                  label="Band background tint"
+                  value={config.totals.paymentTint ?? 8}
+                  min={0}
+                  max={40}
+                  unit="%"
+                  onChange={(v) => patch('totals', { paymentTint: v })}
+                />
+              </>
+            ) : null}
             <Slider
               label="Space below the totals"
               value={config.totals.spaceAfter ?? 14}

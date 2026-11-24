@@ -115,6 +115,10 @@ export const BASE_CONFIG: TemplateConfig = {
     boldGrandTotal: true,
     grandTotalBg: '#f0fdfa',
     showPaymentSummary: true,
+    paidColor: '#15803d',
+    partialColor: '#b45309',
+    unpaidColor: '#b91c1c',
+    paymentTint: 8,
     spaceAfter: 14
   },
   footer: {

@@ -27,3 +27,6 @@ backup.json
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# TypeScript incremental build cache
+*.tsbuildinfo

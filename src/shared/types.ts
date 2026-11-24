@@ -26,6 +26,11 @@ export interface Product {
   tax_rate: number
   stock_qty: number
   reorder_level: number
+  /**
+   * False = unlimited stock. The quantity is not tracked, invoices never
+   * deduct it, and it is never reported as low or out of stock.
+   */
+  track_stock: boolean
   is_active: boolean
   created_at?: string
   updated_at?: string
@@ -295,6 +300,14 @@ export interface TemplateConfig {
     grandTotalBg: string
     /** Print the "PAID IN FULL / PARTIALLY PAID / UNPAID" band. Default on. */
     showPaymentSummary?: boolean
+    /** Colour of the PAID IN FULL band. Default #15803d. */
+    paidColor?: string
+    /** Colour of the PARTIALLY PAID band. Default #b45309. */
+    partialColor?: string
+    /** Colour of the UNPAID band. Default #b91c1c. */
+    unpaidColor?: string
+    /** How strongly the band is tinted with its colour, 0-100. Default 8. */
+    paymentTint?: number
     /** Blank space in px between the totals block and what follows. Default 14. */
     spaceAfter?: number
   }
@@ -375,6 +388,23 @@ export type CsvField =
   | 'tax_rate'
   | 'stock_qty'
   | 'reorder_level'
+  // ── WooCommerce / WordPress export columns ──
+  /** simple | variable | variation | grouped | external */
+  | 'wc_type'
+  /** WooCommerce product ID, used to link a variation to its parent */
+  | 'wc_id'
+  /** "id:123" or a parent SKU */
+  | 'wc_parent'
+  /** "1"/"0" — whether WooCommerce considers it in stock */
+  | 'in_stock'
+  /** discounted price; used in place of the regular price when present */
+  | 'sale_price'
+  /** published / draft, mapped to the active flag */
+  | 'published'
+  | 'weight'
+  | 'length'
+  | 'width'
+  | 'height'
 
 export interface CsvMapping {
   [csvHeader: string]: CsvField
@@ -388,6 +418,28 @@ export interface ImportOptions {
   /** if the sheet has a pack price but no per-piece price, derive it */
   derivePrices: boolean
   defaultPackSize: number
+
+  /**
+   * What to do when the sheet gives no usable stock figure.
+   * - `unlimited`         blank stock means unlimited (WooCommerce's
+   *                       "stock management off"), a number is used as-is
+   * - `unlimited-if-zero` blank *or* zero means unlimited
+   * - `zero`              blank means zero, and everything is tracked
+   */
+  unknownStock?: 'unlimited' | 'unlimited-if-zero' | 'zero'
+
+  /**
+   * WooCommerce variable products are containers — the sellable items are
+   * their variations, which carry the real SKU, price and stock.
+   * - `skip`   import only the variations (default)
+   * - `import` import the parent as a product too
+   * A parent with no variations in the file is always imported, otherwise it
+   * would vanish.
+   */
+  variableParents?: 'skip' | 'import'
+
+  /** Append the variation's attribute values to its name, e.g. "Box — Red, Large". */
+  nameVariationsFromAttributes?: boolean
 }
 
 export interface ImportResult {
@@ -395,6 +447,18 @@ export interface ImportResult {
   updated: number
   skipped: number
   errors: { row: number; message: string }[]
+  /** Set when the file was recognised as a WooCommerce product export. */
+  woocommerce?: {
+    detected: boolean
+    simple: number
+    variations: number
+    variableParents: number
+    other: number
+    /** Variable parents skipped because their variations were imported instead. */
+    parentsSkipped: number
+  }
+  /** Products brought in with stock not tracked. */
+  unlimitedStock?: number
 }
 
 // ───────────────────────────── Reports ─────────────────────────────

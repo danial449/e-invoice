@@ -123,6 +123,15 @@ CI runs the audit on every push against a real PostgreSQL 17 service container.
   an install that already exists.
 - **Invoice HTML escapes every interpolated value**, and the preview iframe is
   `sandbox=""` so no scripts run in it. Keep it that way.
+- **Unlimited stock is `track_stock = false`, not a magic quantity.** Anything
+  that reads or writes `stock_qty` has to check it: the invoice stock sync, the
+  low/out filters, the dashboard counters and stock value, and `adjustStock`.
+- **CSV header matching is order-sensitive.** A WooCommerce export is matched by
+  exact column name first (`WOOCOMMERCE_HEADERS`), because `In stock?` and
+  `In Stock` both normalise to `instock` but mean different things. After that
+  come exact alias matches, then fuzzy ones. `NEVER_MATCH` drops the WooCommerce
+  columns that would otherwise be mis-matched, and `EXACT_ONLY` marks fields
+  that must never be matched fuzzily.
 - **Never commit a database password.** The connect screen starts blank and the
   audit reads `PGPASSWORD` from the environment.
 

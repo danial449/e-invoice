@@ -27,6 +27,19 @@ pack size.
 > A cake box at Rs. 3,500 for 50 pieces: type `3500` as the pack price with a
 > pack size of `50`, and the per-piece price becomes `70.00`.
 
+### Unlimited stock
+
+Not everything needs counting. Tick **Unlimited stock** on a product and the app
+stops tracking a quantity for it:
+
+- invoices never deduct it,
+- it is never reported as low or out of stock,
+- it shows as **∞ unlimited** in the product list,
+- the stock-adjust button disappears, because there is nothing to adjust.
+
+Use it for made-to-order printing, design and plate charges, or anything you can
+always get hold of. Turning it back off asks you for a starting quantity.
+
 ### Stock
 
 Each product has a stock quantity and a reorder level. The sidebar shows a
@@ -80,6 +93,51 @@ correctly.
 
 **Download sample CSV** writes a ready-to-fill file with real products in it,
 which is the easiest way to see the expected format.
+
+### Importing from WooCommerce / WordPress
+
+A product CSV exported straight out of WooCommerce works as-is — no editing, no
+deleting columns. The app recognises the export and maps the columns by their
+exact WooCommerce names, so `Type`, `Parent`, `In stock?`, `Regular price`,
+`Sale price`, `Low stock amount` and the dimension columns all land in the right
+place. The forty-odd columns it cannot use (`Tax status`, `Images`, `Tags`,
+`Backorders allowed?` and so on) are ignored rather than guessed at.
+
+**Simple products** import directly.
+
+**Variable products** are containers — in WooCommerce the sellable items are
+their *variations*, which hold the real SKU, price and stock. By default the
+variations are imported and the empty parent is skipped. A parent whose
+variations are not in the file is always imported anyway, so nothing is lost.
+If you would rather have the parent as well, switch *Variable products* to
+**Import the parent product as well**.
+
+**Variation names.** WooCommerce gives every variation the same name, with only
+the attributes telling them apart. With *Add attribute values to variation
+names* ticked, `Cake Box` becomes `Cake Box - Red`, `Cake Box - Blue` and so on,
+so you can actually find the right one when invoicing. Attributes called
+Colour, Size or Material are also copied into those fields on the product.
+Anything a variation leaves blank — description, category — is inherited from
+its parent, exactly as WooCommerce does.
+
+**Prices.** The regular price is used, unless there is a sale price, which is
+what the customer actually pays.
+
+**Stock.** WooCommerce leaves `Stock` blank when stock management is switched
+off for a product — that means *always available*, not *none left*. The
+**When the file gives no stock figure** setting decides what happens:
+
+| Setting | Blank stock | `0` stock | Marked out of stock |
+|---|---|---|---|
+| *Mark the product unlimited* (default) | unlimited | 0, tracked | 0, tracked |
+| *Mark unlimited when blank or zero* | unlimited | unlimited | unlimited |
+| *Set the stock to 0* | 0, tracked | 0, tracked | 0, tracked |
+
+Products that arrive as unlimited are counted on the summary at the end, and you
+can change any of them on the product itself.
+
+**Unpublished products** (`Published` = `-1`) import as inactive, so they stay
+out of your invoicing but are not lost.
 
 ---
 
@@ -184,8 +242,13 @@ Under the totals the invoice prints a payment band:
 > **UNPAID** — Full amount of Rs. 118,600.00 is due.
 
 Every payment is listed underneath with its date, method, note and amount.
-Drafts and cancelled invoices print nothing. To turn the band off, see the
-template designer.
+Drafts and cancelled invoices print nothing.
+
+**The colours are yours to pick.** In the template designer under *Totals* there
+is a colour for each state — paid, partially paid and unpaid — plus a slider for
+how strongly the band is tinted with that colour. The colour drives the badge
+text, the left edge and the background tint together. Set the tint to 0 for a
+plain band. To hide the band entirely, turn off *Show payment status band*.
 
 ---
 
@@ -220,7 +283,7 @@ beside it. You can change:
 | Header | Title and subtitle text, alignment, colours, padding, company and contact blocks, underline |
 | Document title | Text (INVOICE / TAX INVOICE / QUOTATION…), size, colour, alignment, uppercase |
 | Items table | Which of 10 columns appear, their heading, width, alignment and order; zebra striping; grid lines; row height; padding |
-| Totals | Position and width; which rows show; amount in words (crore/lakh); the payment status band; space below |
+| Totals | Position and width; which rows show; amount in words (crore/lakh); the payment status band and **its colours**; space below |
 | Blocks | Notes, terms, payment details, signature, thank-you line |
 | Footer | Text with placeholders, alignment, colours, page numbers |
 | Watermark | Text or image, size, colour, opacity, rotation, tiling, and automatic DRAFT / PAID / CANCELLED stamps |

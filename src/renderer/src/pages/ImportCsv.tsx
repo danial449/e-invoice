@@ -38,6 +38,10 @@ export default function ImportCsv({ navigate }: NavProps): React.JSX.Element {
   const [createCategories, setCreateCategories] = useState(true)
   const [derivePrices, setDerivePrices] = useState(true)
   const [defaultPackSize, setDefaultPackSize] = useState(1)
+  const [unknownStock, setUnknownStock] =
+    useState<'unlimited' | 'unlimited-if-zero' | 'zero'>('unlimited')
+  const [variableParents, setVariableParents] = useState<'skip' | 'import'>('skip')
+  const [nameVariationsFromAttributes, setNameVariationsFromAttributes] = useState(true)
 
   const pickFile = async (): Promise<void> => {
     try {
@@ -67,11 +71,17 @@ export default function ImportCsv({ navigate }: NavProps): React.JSX.Element {
         onDuplicate,
         createCategories,
         derivePrices,
-        defaultPackSize
+        defaultPackSize,
+        unknownStock,
+        variableParents,
+        nameVariationsFromAttributes
       })
       setResult(r)
       setStep(4)
-      toast.success(`Imported: ${r.inserted} new, ${r.updated} updated, ${r.skipped} skipped.`)
+      const extra = r.unlimitedStock ? `, ${r.unlimitedStock} with unlimited stock` : ''
+      toast.success(
+        `Imported: ${r.inserted} new, ${r.updated} updated, ${r.skipped} skipped${extra}.`
+      )
     } catch (err) {
       toast.error(err)
     } finally {
@@ -84,6 +94,13 @@ export default function ImportCsv({ navigate }: NavProps): React.JSX.Element {
   const hasUnitPrice = mappedFields.has('unit_price')
   const hasPackPrice = mappedFields.has('pack_price')
   const hasPackSize = mappedFields.has('pack_size')
+
+  // A WooCommerce export is recognisable by its Type / Parent columns or its
+  // numbered attribute pairs.
+  const isWooCommerce =
+    mappedFields.has('wc_type') ||
+    mappedFields.has('wc_parent') ||
+    (preview?.headers ?? []).some((h) => /^attribute\s*\d+\s*name$/i.test(h.trim()))
 
   const steps = [
     { n: 1, label: 'Choose file' },
@@ -322,6 +339,66 @@ export default function ImportCsv({ navigate }: NavProps): React.JSX.Element {
                 </div>
               ) : null}
 
+              <div className="field">
+                <label>When the file gives no stock figure</label>
+                <select
+                  value={unknownStock}
+                  onChange={(e) => setUnknownStock(e.target.value as typeof unknownStock)}
+                  style={{ maxWidth: 340 }}
+                >
+                  <option value="unlimited">Mark the product unlimited (recommended)</option>
+                  <option value="unlimited-if-zero">Mark unlimited when blank or zero</option>
+                  <option value="zero">Set the stock to 0</option>
+                </select>
+                <div className="help">
+                  WooCommerce leaves <em>Stock</em> blank when stock management is off, which means
+                  always available rather than none left. An unlimited product is never deducted by
+                  an invoice and never reported as low or out of stock.
+                  {unknownStock === 'unlimited'
+                    ? ' A row marked out of stock is still imported as 0.'
+                    : unknownStock === 'unlimited-if-zero'
+                      ? ' Zero and blank are both treated as "not counted", even on rows marked out of stock.'
+                      : ' Nothing is marked unlimited; every product keeps a counted quantity.'}
+                </div>
+              </div>
+
+              {isWooCommerce ? (
+                <>
+                  <div className="field">
+                    <label>Variable products</label>
+                    <select
+                      value={variableParents}
+                      onChange={(e) => setVariableParents(e.target.value as typeof variableParents)}
+                      style={{ maxWidth: 340 }}
+                    >
+                      <option value="skip">Import the variations only (recommended)</option>
+                      <option value="import">Import the parent product as well</option>
+                    </select>
+                    <div className="help">
+                      In WooCommerce a variable product is a container — its variations hold the
+                      real SKU, price and stock. A parent whose variations are not in this file is
+                      always imported, so nothing is lost.
+                    </div>
+                  </div>
+
+                  <div className="field">
+                    <label className="inline-check">
+                      <input
+                        type="checkbox"
+                        checked={nameVariationsFromAttributes}
+                        onChange={(e) => setNameVariationsFromAttributes(e.target.checked)}
+                      />
+                      <span>Add attribute values to variation names</span>
+                    </label>
+                    <div className="help">
+                      Turns three identically named variations into{' '}
+                      <code>Cake Box - Red</code>, <code>Cake Box - Blue</code> and{' '}
+                      <code>Cake Box - Gold</code> so you can tell them apart when invoicing.
+                    </div>
+                  </div>
+                </>
+              ) : null}
+
               <div className="banner info mt16">
                 Ready to import <strong>{preview.totalRows}</strong> rows from{' '}
                 <code>{filePath?.split(/[\\/]/).pop()}</code>.
@@ -363,6 +440,32 @@ export default function ImportCsv({ navigate }: NavProps): React.JSX.Element {
                   <div className="stat-value">{result.errors.length}</div>
                 </div>
               </div>
+
+              {result.unlimitedStock ? (
+                <p className="small dim mb0 mt8">
+                  <strong>{result.unlimitedStock}</strong>{' '}
+                  {result.unlimitedStock === 1 ? 'product was' : 'products were'} brought in with{' '}
+                  <strong>unlimited stock</strong>, because the file gave no quantity for them.
+                  Invoices will not deduct stock for these. You can change any of them on the
+                  product itself.
+                </p>
+              ) : null}
+
+              {result.woocommerce?.detected ? (
+                <div className="banner info mt16">
+                  Recognised as a <strong>WooCommerce export</strong>: {result.woocommerce.simple}{' '}
+                  simple, {result.woocommerce.variations} variations,{' '}
+                  {result.woocommerce.variableParents} variable parents
+                  {result.woocommerce.parentsSkipped > 0 ? (
+                    <>
+                      {' '}
+                      (of which {result.woocommerce.parentsSkipped} skipped because their variations
+                      were imported instead)
+                    </>
+                  ) : null}
+                  {result.woocommerce.other > 0 ? `, ${result.woocommerce.other} grouped/external` : ''}.
+                </div>
+              ) : null}
 
               {result.errors.length > 0 ? (
                 <>
