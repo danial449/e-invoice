@@ -365,18 +365,29 @@ export default function SettingsPage({ onDbChange }: Props): React.JSX.Element {
                     style={{ minHeight: 110 }}
                   />
                 </div>
-                <div className="field">
-                  <label>Link to your full terms &amp; conditions</label>
-                  <input
-                    value={settings.terms_url ?? ''}
-                    onChange={(e) => set('terms_url', e.target.value)}
-                    placeholder="https://packagingbox.pk/terms-and-conditions/"
-                  />
-                  <div className="help">
-                    Printed under the terms on every invoice as{' '}
-                    <em>Full terms &amp; conditions: {settings.terms_url || '…'}</em>. The list
-                    above is the summary; this link is the authority. Leave empty to hide the line.
+                <div className="row">
+                  <div className="field" style={{ flex: 2 }}>
+                    <label>Link to your full terms &amp; conditions</label>
+                    <input
+                      value={settings.terms_url ?? ''}
+                      onChange={(e) => set('terms_url', e.target.value)}
+                      placeholder="https://packagingbox.pk/terms-and-conditions/"
+                    />
                   </div>
+                  <div className="field">
+                    <label>Wording of the link</label>
+                    <input
+                      value={settings.terms_link_text ?? ''}
+                      onChange={(e) => set('terms_link_text', e.target.value)}
+                      placeholder="Terms & Conditions"
+                    />
+                  </div>
+                </div>
+                <div className="help" style={{ marginTop: -8, marginBottom: 12 }}>
+                  The invoice shows the wording as a link rather than the bare address, so it reads{' '}
+                  <em>{settings.terms_link_text?.trim() || 'Terms & Conditions'}</em> and stays
+                  clickable in the PDF. The list above is the summary; the link is the authority.
+                  Leave the address empty to hide the line.
                 </div>
               </div>
             </div>

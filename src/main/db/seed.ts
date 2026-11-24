@@ -91,7 +91,8 @@ const COMPANY_DEFAULTS = {
     '3. Custom printed orders require 50% advance payment.\n' +
     '4. Goods once sold are not returnable unless defective.',
   default_notes: 'For bulk and wholesale pricing, please contact us on WhatsApp.',
-  terms_url: 'https://packagingbox.pk/terms-and-conditions/'
+  terms_url: 'https://packagingbox.pk/terms-and-conditions/',
+  terms_link_text: 'Terms & Conditions'
 }
 
 export async function seedDefaults(pool: Pool): Promise<void> {
@@ -171,5 +172,10 @@ export async function seedDefaults(pool: Pool): Promise<void> {
   await pool.query(
     `UPDATE company_settings SET terms_url = $1 WHERE id = 1 AND coalesce(terms_url,'') = ''`,
     [COMPANY_DEFAULTS.terms_url]
+  )
+  await pool.query(
+    `UPDATE company_settings SET terms_link_text = $1
+     WHERE id = 1 AND coalesce(terms_link_text,'') = ''`,
+    [COMPANY_DEFAULTS.terms_link_text]
   )
 }

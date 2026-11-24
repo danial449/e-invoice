@@ -46,6 +46,19 @@ function tint(color: string, percent: number): string {
   return `rgba(${r}, ${g}, ${b}, ${a.toFixed(3)})`
 }
 
+/**
+ * Only http(s) links are ever emitted. Anything else - javascript:, data:, a
+ * stray word - becomes no link at all rather than a clickable surprise in the
+ * PDF. A bare domain is upgraded to https.
+ */
+function safeUrl(raw: unknown): string {
+  const v = String(raw ?? '').trim()
+  if (!v) return ''
+  if (/^https?:\/\//i.test(v)) return v
+  if (/^[\w.-]+\.[a-z]{2,}(\/|$)/i.test(v)) return `https://${v}`
+  return ''
+}
+
 function formatDate(d: string | null | undefined): string {
   if (!d) return ''
   // Values arrive as YYYY-MM-DD; format without constructing a Date so the
@@ -445,11 +458,13 @@ function renderBlocks(ctx: RenderContext): string {
   }
   if (B.showTerms && (invoice.terms || company.terms_url)) {
     // The published T&Cs are the authority; the printed list is a summary.
-    // Drop the scheme so the line stays short enough not to wrap awkwardly in
-    // a narrow column; it is still unambiguous as a web address.
-    const shown = company.terms_url.replace(/^https?:\/\//i, '').replace(/\/+$/, '')
-    const link = company.terms_url
-      ? `<div class="terms-link">Full terms &amp; conditions: ${escapeHtml(shown)}</div>`
+    // Shown as wording, not a raw address: "Full terms & conditions: Terms &
+    // Conditions" reads badly, so the label alone is the link. The href is kept
+    // so it stays clickable in the PDF.
+    const label = (company.terms_link_text ?? '').trim() || 'Terms & Conditions'
+    const href = safeUrl(company.terms_url)
+    const link = href
+      ? `<div class="terms-link"><a href="${escapeHtml(href)}">${escapeHtml(label)}</a></div>`
       : ''
     leftParts.push(
       `<div class="block"><div class="block-label">${escapeHtml(B.termsLabel)}</div>` +
@@ -480,6 +495,64 @@ function renderBlocks(ctx: RenderContext): string {
     ${sig ? `<div class="blocks-right">${sig}</div>` : ''}
   </section>
   ${B.showThankYou && B.thankYouText ? `<div class="thanks">${substitute(B.thankYouText, ctx)}</div>` : ''}`
+}
+
+/** The built-in stamp designs, as plain text with an optional sub-line. */
+const STAMP_PRESETS: Record<string, { text: string; sub?: string; color: string }> = {
+  paid: { text: 'PAID', color: '#15803d' },
+  partial: { text: 'PART PAID', color: '#b45309' },
+  unpaid: { text: 'UNPAID', color: '#b91c1c' },
+  cancelled: { text: 'CANCELLED', color: '#b91c1c' },
+  draft: { text: 'DRAFT', color: '#64748b' },
+  duplicate: { text: 'DUPLICATE', color: '#64748b' },
+  original: { text: 'ORIGINAL', color: '#1d4ed8' },
+  received: { text: 'RECEIVED', color: '#15803d' }
+}
+
+/** Which preset an `auto` stamp resolves to for this invoice. */
+function autoStampKey(ctx: RenderContext): string {
+  const { invoice } = ctx
+  if (invoice.status === 'cancelled') return 'cancelled'
+  if (invoice.status === 'draft') return 'draft'
+  const t = computeTotals(invoice)
+  if (t.paid > 0 && t.balance <= 0) return 'paid'
+  if (t.paid > 0) return 'partial'
+  return 'unpaid'
+}
+
+function renderStamp(ctx: RenderContext): string {
+  const S = ctx.config.stamp
+  if (!S || !S.enabled) return ''
+  if (S.hideOnDraft !== false && ctx.invoice.status === 'draft' && S.design === 'auto') return ''
+
+  const key = S.design === 'auto' ? autoStampKey(ctx) : S.design
+
+  if (key === 'custom') {
+    if (!S.imageDataUrl) return ''
+    return `<div class="stamp stamp-${escapeHtml(S.position)}" style="opacity:${S.opacity};transform:${stampTransform(S)};width:${S.width}px">
+      <img src="${escapeHtml(S.imageDataUrl)}" alt="">
+    </div>`
+  }
+
+  const preset = STAMP_PRESETS[key] ?? STAMP_PRESETS.unpaid
+  // A template colour of its own wins; otherwise each design has a sensible one.
+  const color = S.color && S.color.toLowerCase() !== '#000000' ? S.color : preset.color
+  const dateLine = formatDate(ctx.invoice.invoice_date)
+  // The box hugs its wording rather than clamping it, so a long word like
+  // CANCELLED keeps to one line; `width` scales the lettering instead.
+  const textPt = Math.max(8, S.width / 8.5)
+
+  return `<div class="stamp stamp-ink stamp-${escapeHtml(S.position)}"
+    style="opacity:${S.opacity};transform:${stampTransform(S)};color:${escapeHtml(color)};border-color:${escapeHtml(color)}">
+    <div class="stamp-text" style="font-size:${textPt.toFixed(1)}pt">${escapeHtml(preset.text)}</div>
+    <div class="stamp-sub" style="font-size:${Math.max(5, textPt / 2.6).toFixed(1)}pt">${escapeHtml(dateLine)}</div>
+  </div>`
+}
+
+/** Centre needs its own half-width shift, which has to live in the transform. */
+function stampTransform(S: NonNullable<TemplateConfig['stamp']>): string {
+  const x = S.position === 'center' ? `calc(-50% + ${S.offsetX}px)` : `${S.offsetX}px`
+  return `translate(${x}, ${S.offsetY}px) rotate(${S.rotation}deg)`
 }
 
 function renderFooter(ctx: RenderContext): string {
@@ -536,6 +609,11 @@ function renderStyles(ctx: RenderContext): string {
   const payPartial = c.totals.partialColor || '#b45309'
   const payUnpaid = c.totals.unpaidColor || '#b91c1c'
   const payTint = Math.min(100, Math.max(0, c.totals.paymentTint ?? 8))
+
+  // Pinned by default: an invoice footer belongs at the foot of the page, not
+  // floating directly under a short item list.
+  const footerSticky = c.footer.enabled && c.footer.stickToBottom !== false
+  const footerRepeats = c.footer.showOnAllPages || footerSticky
 
   const borderAll = c.table.borders === 'all'
   const borderH = c.table.borders === 'horizontal'
@@ -746,6 +824,7 @@ function renderStyles(ctx: RenderContext): string {
     border-top: 1px solid ${col.border};
   }
   .pay-lines .pay-amt { text-align: right; white-space: nowrap; font-weight: 600; color: ${f.color}; }
+  .terms-link a { color: inherit; text-decoration: underline; }
   .terms-link {
     margin-top: 4px;
     font-size: ${Math.max(5.5, f.baseSize - 1)}pt;
@@ -775,7 +854,8 @@ function renderStyles(ctx: RenderContext): string {
 
   /* ── Footer ── */
   .doc-footer {
-    margin-top: 12px;
+    margin-top: ${footerSticky ? 'auto' : '12px'};
+    padding-top: ${footerSticky ? '12px' : '0'};
     padding: ${c.footer.paddingY}px 0;
     background: ${c.footer.background};
     color: ${c.footer.textColor};
@@ -785,15 +865,62 @@ function renderStyles(ctx: RenderContext): string {
   }
   .doc-footer .page-num { margin-top: 2px; opacity: .8; }
 
-  /* A fixed footer repeats on every printed page in Chromium. */
+  /* On screen the sheet is a column so the footer can be pushed to the foot of
+     the page; in print a fixed footer sits at the bottom of every page, which
+     is what Chromium gives us for paged media. */
+  ${footerSticky ? `
+  .sheet { display: flex; flex-direction: column; }
+  .content { flex: 1 1 auto; display: flex; flex-direction: column; }
+  .content > .blocks, .content > section:last-of-type { flex: 0 0 auto; }
+  ` : ''}
+
   @media print {
+    ${footerSticky ? `
+    .sheet { display: block; }
+    .content { display: block; }` : ''}
     .doc-footer.repeat {
       position: fixed;
       bottom: 0; left: 0; right: 0;
       margin-top: 0;
     }
-    .content-pad { padding-bottom: ${c.footer.enabled && c.footer.showOnAllPages ? 28 : 0}px; }
+    .content-pad { padding-bottom: ${c.footer.enabled && footerRepeats ? 28 : 0}px; }
   }
+
+  /* ── Stamp ── */
+  .stamp {
+    position: absolute;
+    z-index: 5;
+    pointer-events: none;
+    transform-origin: center;
+  }
+  .stamp img { width: 100%; height: auto; display: block; }
+  .stamp-ink {
+    border: 3px solid currentColor;
+    border-radius: 6px;
+    padding: 7px 14px 9px;
+    text-align: center;
+    font-weight: 800;
+    white-space: nowrap;
+    background: ${c.page.background};
+  }
+  .stamp-ink .stamp-text {
+    letter-spacing: 2px;
+    line-height: 1.05;
+  }
+  .stamp-ink .stamp-sub {
+    letter-spacing: 1px;
+    font-weight: 700;
+    margin-top: 3px;
+    line-height: 1;
+  }
+  .stamp-top-left     { top: 12%;  left: 6%; }
+  .stamp-top-right    { top: 12%;  right: 6%; }
+  .stamp-middle-left  { top: 46%;  left: 6%; }
+  .stamp-middle-right { top: 46%;  right: 6%; }
+  .stamp-bottom-left  { bottom: 16%; left: 6%; }
+  .stamp-bottom-right { bottom: 16%; right: 6%; }
+  .stamp-center       { top: 42%; left: 50%; }
+  @media print { .stamp { position: absolute; } }
 
   /* ── Watermark ── */
   .watermark {
@@ -831,6 +958,7 @@ function renderStyles(ctx: RenderContext): string {
 export function renderInvoiceBody(ctx: RenderContext): string {
   return `
   ${renderWatermark(ctx)}
+  ${renderStamp(ctx)}
   <div class="content content-pad">
     ${renderHeader(ctx)}
     ${renderParties(ctx)}

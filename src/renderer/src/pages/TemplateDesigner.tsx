@@ -569,7 +569,15 @@ export default function TemplateDesigner(_props: NavProps): React.JSX.Element {
             <Toggle label="Show footer" checked={config.footer.enabled} onChange={(v) => patch('footer', { enabled: v })} />
             {config.footer.enabled ? (
               <>
-                <Toggle label="Repeat footer on every page" checked={config.footer.showOnAllPages} onChange={(v) => patch('footer', { showOnAllPages: v })} />
+                <Toggle
+                  label="Pin the footer to the bottom of the page"
+                  checked={config.footer.stickToBottom !== false}
+                  onChange={(v) => patch('footer', { stickToBottom: v })}
+                  help="On by default. The footer sits at the foot of the page rather than directly under the content. On a multi-page invoice that means the bottom of every page."
+                />
+                {config.footer.stickToBottom === false ? (
+                  <Toggle label="Repeat footer on every page" checked={config.footer.showOnAllPages} onChange={(v) => patch('footer', { showOnAllPages: v })} />
+                ) : null}
                 <TextField
                   label="Footer text"
                   value={config.footer.text}
@@ -590,6 +598,118 @@ export default function TemplateDesigner(_props: NavProps): React.JSX.Element {
                     help="Use {{page}} and {{pages}}. In the PDF these are placed in the bottom margin by the printer."
                   />
                 ) : null}
+              </>
+            ) : null}
+          </Accordion>
+
+          {/* ── Stamp ── */}
+          <Accordion title="Stamp" icon="◉">
+            <Toggle
+              label="Stamp the invoice"
+              checked={config.stamp?.enabled === true}
+              onChange={(v) => patch('stamp', { enabled: v })}
+              help="A rubber stamp pressed onto the page - PAID, CANCELLED and so on - rather than a full-page watermark."
+            />
+            {config.stamp?.enabled ? (
+              <>
+                <div className="ctl">
+                  <label>Which stamp</label>
+                  <select
+                    value={config.stamp.design}
+                    onChange={(e) => patch('stamp', { design: e.target.value as never })}
+                  >
+                    <option value="auto">Automatic - follows the invoice status</option>
+                    <option value="paid">PAID</option>
+                    <option value="partial">PART PAID</option>
+                    <option value="unpaid">UNPAID</option>
+                    <option value="cancelled">CANCELLED</option>
+                    <option value="draft">DRAFT</option>
+                    <option value="original">ORIGINAL</option>
+                    <option value="duplicate">DUPLICATE</option>
+                    <option value="received">RECEIVED</option>
+                    <option value="custom">My own image</option>
+                  </select>
+                  <div className="help">
+                    {config.stamp.design === 'auto'
+                      ? 'Paid invoices get PAID, part-paid get PART PAID, unpaid get UNPAID, and cancelled get CANCELLED.'
+                      : config.stamp.design === 'custom'
+                        ? 'Upload a scan of your own stamp below. A PNG with a transparent background looks best.'
+                        : 'This stamp is used on every invoice with this template, whatever its status.'}
+                  </div>
+                </div>
+
+                {config.stamp.design === 'custom' ? (
+                  <div className="ctl">
+                    <label>Stamp image</label>
+                    <div className="flex gap8 items-center">
+                      {config.stamp.imageDataUrl ? (
+                        <img
+                          src={config.stamp.imageDataUrl}
+                          alt=""
+                          style={{ height: 46, background: '#fff', borderRadius: 4, padding: 2 }}
+                        />
+                      ) : null}
+                      <button
+                        className="btn-sm"
+                        onClick={async () => {
+                          try {
+                            const r = await api.pickImage()
+                            if (r) patch('stamp', { imageDataUrl: r.dataUrl })
+                          } catch (err) {
+                            toast.error(err)
+                          }
+                        }}
+                      >
+                        Choose image…
+                      </button>
+                      {config.stamp.imageDataUrl ? (
+                        <button className="btn-sm" onClick={() => patch('stamp', { imageDataUrl: '' })}>
+                          Remove
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <ColorField
+                      label="Ink colour"
+                      value={config.stamp.color}
+                      onChange={(v) => patch('stamp', { color: v })}
+                    />
+                    <div className="help" style={{ marginTop: -6 }}>
+                      Leave it black to use the colour that suits each design - green for PAID,
+                      amber for PART PAID, red for UNPAID.
+                    </div>
+                  </>
+                )}
+
+                <div className="ctl">
+                  <label>Position</label>
+                  <select
+                    value={config.stamp.position}
+                    onChange={(e) => patch('stamp', { position: e.target.value as never })}
+                  >
+                    <option value="top-left">Top left</option>
+                    <option value="top-right">Top right</option>
+                    <option value="middle-left">Middle left</option>
+                    <option value="middle-right">Middle right</option>
+                    <option value="bottom-left">Bottom left</option>
+                    <option value="bottom-right">Bottom right</option>
+                    <option value="center">Centre</option>
+                  </select>
+                </div>
+
+                <Slider label="Size" value={config.stamp.width} min={60} max={400} unit="px" onChange={(v) => patch('stamp', { width: v })} />
+                <Slider label="Rotation" value={config.stamp.rotation} min={-45} max={45} unit="deg" onChange={(v) => patch('stamp', { rotation: v })} />
+                <Slider label="Opacity" value={Math.round(config.stamp.opacity * 100)} min={10} max={100} unit="%" onChange={(v) => patch('stamp', { opacity: v / 100 })} />
+                <Slider label="Nudge across" value={config.stamp.offsetX} min={-120} max={120} unit="px" onChange={(v) => patch('stamp', { offsetX: v })} />
+                <Slider label="Nudge down" value={config.stamp.offsetY} min={-120} max={120} unit="px" onChange={(v) => patch('stamp', { offsetY: v })} />
+                <Toggle
+                  label="Hide the stamp on drafts"
+                  checked={config.stamp.hideOnDraft !== false}
+                  onChange={(v) => patch('stamp', { hideOnDraft: v })}
+                  help="Only applies to the automatic stamp."
+                />
               </>
             ) : null}
           </Accordion>

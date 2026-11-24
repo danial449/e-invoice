@@ -113,6 +113,9 @@ export function registerIpc(): void {
   handle('invoices:duplicate', (id: number) => invoices.duplicateInvoice(id))
   handle('invoices:nextNo', () => settings.peekNextInvoiceNo())
   handle('invoices:payments', (id: number) => invoices.listPayments(id))
+  handle('invoices:history', (id: number, limit?: number) => invoices.listInvoiceHistory(id, limit))
+  handle('invoices:recentHistory', (limit?: number) => invoices.listRecentHistory(limit))
+  handle('customers:history', (id: number, limit?: number) => invoices.listCustomerHistory(id, limit))
   handle('invoices:addPayment', (args: Parameters<typeof invoices.addPayment>[0]) => invoices.addPayment(args))
   handle('invoices:deletePayment', (id: number) => invoices.deletePayment(id))
 

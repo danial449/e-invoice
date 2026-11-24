@@ -1,6 +1,6 @@
 import type {
   ApiResult, Category, CompanySettings, Customer, CustomerInput, DashboardStats, DbConfig,
-  ImportOptions, ImportResult, Invoice, InvoiceStatus, InvoiceTemplate, InvoiceWithItems,
+  ImportOptions, ImportResult, Invoice, InvoiceEvent, InvoiceStatus, InvoiceTemplate, InvoiceWithItems,
   Payment, Product, ProductInput, StockMovement, TemplateConfig
 } from '@shared/types'
 
@@ -152,6 +152,9 @@ export const api = {
   duplicateInvoice: (id: number) => call<InvoiceWithItems>('invoices:duplicate', id),
   nextInvoiceNo: () => call<string>('invoices:nextNo'),
   listPayments: (id: number) => call<Payment[]>('invoices:payments', id),
+  invoiceHistory: (id: number, limit?: number) => call<InvoiceEvent[]>('invoices:history', id, limit),
+  recentHistory: (limit?: number) => call<InvoiceEvent[]>('invoices:recentHistory', limit),
+  customerHistory: (id: number, limit?: number) => call<InvoiceEvent[]>('customers:history', id, limit),
   addPayment: (args: { invoiceId: number; amount: number; method: string; paidOn: string; note?: string }) =>
     call<InvoiceWithItems>('invoices:addPayment', args),
   deletePayment: (id: number) => call<void>('invoices:deletePayment', id),

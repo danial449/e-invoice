@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { api } from '../lib/api'
 import { ConfirmDialog, Empty, Modal, Spinner, useDebounced, useToast } from '../components/ui'
+import HistoryTimeline from '../components/HistoryTimeline'
 import { formatMoney } from '@shared/calc'
 import type { CompanySettings, Customer, CustomerInput } from '@shared/types'
 import type { NavProps } from '../App'
@@ -29,6 +30,7 @@ export default function Customers({ navigate }: NavProps): React.JSX.Element {
 
   const [editing, setEditing] = useState<{ customer: Customer | null } | null>(null)
   const [deleting, setDeleting] = useState<Customer | null>(null)
+  const [historyFor, setHistoryFor] = useState<Customer | null>(null)
   const [ledgers, setLedgers] = useState<Record<number, { invoiceCount: number; outstanding: number; totalBilled: number }>>({})
 
   const load = useCallback(async () => {
@@ -175,6 +177,13 @@ export default function Customers({ navigate }: NavProps): React.JSX.Element {
                         >
                           ＋
                         </button>
+                        <button
+                          className="btn-ghost btn-xs"
+                          title="Invoice history for this customer"
+                          onClick={() => setHistoryFor(c)}
+                        >
+                          ◴
+                        </button>
                         <button className="btn-ghost btn-xs" title="Edit" onClick={() => setEditing({ customer: c })}>
                           ✎
                         </button>
@@ -190,6 +199,24 @@ export default function Customers({ navigate }: NavProps): React.JSX.Element {
           </div>
         )}
       </div>
+
+      {historyFor ? (
+        <Modal
+          title={`History - ${historyFor.company || historyFor.name}`}
+          onClose={() => setHistoryFor(null)}
+          size="wide"
+        >
+          <p className="small dim mt0">
+            Every change to this customer&apos;s invoices, newest first - created, edited, issued,
+            cancelled, paid and deleted.
+          </p>
+          <HistoryTimeline
+            customerId={historyFor.id}
+            showInvoiceNo
+            emptyText="No invoices have been raised for this customer yet."
+          />
+        </Modal>
+      ) : null}
 
       {editing ? (
         <CustomerEditor

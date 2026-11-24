@@ -1368,3 +1368,89 @@ table.lines .line-total {
   padding: 5px 8px;
   white-space: nowrap;
 }
+
+/* ───────────────────────── History timeline ───────────────────────── */
+
+.timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.tl-item {
+  display: flex;
+  gap: 11px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.tl-item:last-child {
+  border-bottom: none;
+}
+.tl-dot {
+  flex: 0 0 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  background: var(--bg-3);
+  color: var(--text-dim);
+  border: 1px solid var(--border-light);
+}
+.tl-created .tl-dot {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.tl-payment .tl-dot {
+  background: var(--ok-soft);
+  color: #4ade80;
+  border-color: #4ade80;
+}
+.tl-payment_removed .tl-dot,
+.tl-deleted .tl-dot {
+  background: var(--danger-soft);
+  color: #f87171;
+  border-color: #f87171;
+}
+.tl-status .tl-dot {
+  background: var(--warn-soft);
+  color: #fbbf24;
+  border-color: #fbbf24;
+}
+.tl-body {
+  flex: 1;
+  min-width: 0;
+}
+.tl-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.tl-kind {
+  font-weight: 650;
+  font-size: 12.5px;
+}
+.tl-ref {
+  font-size: 11.5px;
+  color: var(--accent);
+  font-weight: 600;
+}
+.tl-when {
+  margin-left: auto;
+  font-size: 11.5px;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+.tl-summary {
+  font-size: 13px;
+  color: var(--text-dim);
+  margin-top: 2px;
+  word-break: break-word;
+}
+.tl-exact {
+  font-size: 11px;
+  color: var(--text-faint);
+  margin-top: 2px;
+}

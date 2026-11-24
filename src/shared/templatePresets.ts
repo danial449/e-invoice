@@ -130,6 +130,7 @@ export const BASE_CONFIG: TemplateConfig = {
     textColor: '#6b7280',
     paddingY: 8,
     borderTop: true,
+    stickToBottom: true,
     showPageNumbers: true,
     pageNumberFormat: 'Page {{page}} of {{pages}}'
   },
@@ -159,6 +160,19 @@ export const BASE_CONFIG: TemplateConfig = {
     width: 400,
     repeat: false,
     position: 'center'
+  },
+  stamp: {
+    enabled: false,
+    design: 'auto',
+    imageDataUrl: '',
+    color: '#000000',
+    width: 150,
+    opacity: 0.9,
+    rotation: -12,
+    position: 'middle-left',
+    offsetX: 0,
+    offsetY: 0,
+    hideOnDraft: true
   }
 }
 

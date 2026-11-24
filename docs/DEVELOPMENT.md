@@ -132,6 +132,12 @@ CI runs the audit on every push against a real PostgreSQL 17 service container.
   come exact alias matches, then fuzzy ones. `NEVER_MATCH` drops the WooCommerce
   columns that would otherwise be mis-matched, and `EXACT_ONLY` marks fields
   that must never be matched fuzzily.
+- **`invoice_events` is append-only and must outlive its invoice.** The foreign
+  keys are `ON DELETE SET NULL`, not `CASCADE`, and `invoice_no` /
+  `customer_name` are copied onto each row so a deleted invoice's trail still
+  reads. `recordEvent` swallows its own errors on purpose: recording history
+  must never roll back the thing it is recording. When an invoice is renumbered
+  out of `DRAFT-xxxx`, call `renumberEvents` so the trail stays one story.
 - **Never commit a database password.** The connect screen starts blank and the
   audit reads `PGPASSWORD` from the environment.
 

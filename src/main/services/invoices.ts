@@ -2,7 +2,94 @@ import type { PoolClient } from 'pg'
 import { query, queryOne, withTransaction } from '../db/pool'
 import { computeTotals, lineNet, linePieces, derivePaymentStatus, round2, round3, num } from '../../shared/calc'
 import { formatInvoiceNo } from './settings'
-import type { Invoice, InvoiceInput, InvoiceItem, InvoiceStatus, InvoiceWithItems, Payment } from '../../shared/types'
+import type {
+  Invoice, InvoiceEvent, InvoiceEventKind, InvoiceInput, InvoiceItem, InvoiceStatus,
+  InvoiceWithItems, Payment
+} from '../../shared/types'
+
+// ─────────────────────── History ───────────────────────
+
+/** Customer name as it was snapshotted onto the invoice. */
+function snapshotName(snapshot: unknown): string {
+  const s = (snapshot ?? {}) as Record<string, unknown>
+  return String(s.company || s.name || '').trim()
+}
+
+/**
+ * Append one entry to the audit trail. Never throws: a history write must not
+ * be able to roll back the thing it is recording.
+ */
+async function recordEvent(
+  client: PoolClient,
+  args: {
+    invoiceId: number | null
+    invoiceNo: string
+    customerId: number | null
+    customerName: string
+    kind: InvoiceEventKind
+    summary: string
+    detail?: Record<string, unknown>
+  }
+): Promise<void> {
+  try {
+    await client.query(
+      `INSERT INTO invoice_events
+         (invoice_id, invoice_no, customer_id, customer_name, kind, summary, detail)
+       VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb)`,
+      [
+        args.invoiceId, args.invoiceNo, args.customerId, args.customerName,
+        args.kind, args.summary, JSON.stringify(args.detail ?? {})
+      ]
+    )
+  } catch (err) {
+    console.error('[history] could not record event:', err)
+  }
+}
+
+/**
+ * A draft's entries were written against its temporary `DRAFT-xxxx` number.
+ * Once a real number is allocated, bring them with it so the trail reads as one
+ * story rather than two.
+ */
+async function renumberEvents(client: PoolClient, invoiceId: number, invoiceNo: string): Promise<void> {
+  try {
+    await client.query('UPDATE invoice_events SET invoice_no = $1 WHERE invoice_id = $2', [
+      invoiceNo,
+      invoiceId
+    ])
+  } catch (err) {
+    console.error('[history] could not renumber events:', err)
+  }
+}
+
+export async function listInvoiceHistory(invoiceId: number, limit = 200): Promise<InvoiceEvent[]> {
+  return query<InvoiceEvent>(
+    `SELECT * FROM invoice_events WHERE invoice_id = $1
+     ORDER BY created_at DESC, id DESC LIMIT $2`,
+    [invoiceId, Math.min(Math.max(limit, 1), 1000)]
+  )
+}
+
+/**
+ * Everything that has happened to this customer's invoices, newest first.
+ * Matched on the customer id, and also on the name copied onto the entry so
+ * the trail of a since-deleted invoice is still found.
+ */
+export async function listCustomerHistory(customerId: number, limit = 300): Promise<InvoiceEvent[]> {
+  return query<InvoiceEvent>(
+    `SELECT * FROM invoice_events WHERE customer_id = $1
+     ORDER BY created_at DESC, id DESC LIMIT $2`,
+    [customerId, Math.min(Math.max(limit, 1), 1000)]
+  )
+}
+
+/** The most recent activity across every invoice. */
+export async function listRecentHistory(limit = 200): Promise<InvoiceEvent[]> {
+  return query<InvoiceEvent>(
+    'SELECT * FROM invoice_events ORDER BY created_at DESC, id DESC LIMIT $1',
+    [Math.min(Math.max(limit, 1), 1000)]
+  )
+}
 
 // ─────────────────────── Numbering ───────────────────────
 
@@ -206,10 +293,19 @@ export async function saveInvoice(input: InvoiceInput): Promise<InvoiceWithItems
     let invoiceNo: string
     let prevStatus: InvoiceStatus = 'draft'
     let prevStockApplied = false
+    let before: { total: number; itemCount: number; status: InvoiceStatus } | null = null
 
     if (input.id) {
-      const prev = await client.query<{ status: InvoiceStatus; stock_applied: boolean; invoice_no: string }>(
-        'SELECT status, stock_applied, invoice_no FROM invoices WHERE id = $1 FOR UPDATE',
+      const prev = await client.query<{
+        status: InvoiceStatus
+        stock_applied: boolean
+        invoice_no: string
+        total: number
+        item_count: number
+      }>(
+        `SELECT status, stock_applied, invoice_no, total,
+                (SELECT count(*) FROM invoice_items WHERE invoice_id = i.id) AS item_count
+         FROM invoices i WHERE id = $1 FOR UPDATE`,
         [input.id]
       )
       if (prev.rowCount === 0) throw new Error('Invoice not found.')
@@ -217,6 +313,11 @@ export async function saveInvoice(input: InvoiceInput): Promise<InvoiceWithItems
       prevStockApplied = prev.rows[0].stock_applied
       invoiceId = input.id
       invoiceNo = prev.rows[0].invoice_no
+      before = {
+        total: num(prev.rows[0].total),
+        itemCount: num(prev.rows[0].item_count),
+        status: prev.rows[0].status
+      }
 
       // Reverse any previously applied stock before rewriting the lines.
       if (prevStockApplied) await applyStock(client, invoiceId, invoiceNo, -1)
@@ -266,6 +367,7 @@ export async function saveInvoice(input: InvoiceInput): Promise<InvoiceWithItems
     if (input.id && prevStatus === 'draft' && status !== 'draft' && invoiceNo.startsWith('DRAFT-')) {
       invoiceNo = await nextInvoiceNo(client)
       await client.query('UPDATE invoices SET invoice_no = $1 WHERE id = $2', [invoiceNo, invoiceId])
+      await renumberEvents(client, invoiceId, invoiceNo)
     }
 
     for (const item of items) {
@@ -288,6 +390,47 @@ export async function saveInvoice(input: InvoiceInput): Promise<InvoiceWithItems
       'SELECT * FROM invoice_items WHERE invoice_id = $1 ORDER BY sort_order, id',
       [invoiceId]
     )
+
+    const custName = snapshotName(snapshot)
+    const evBase = {
+      invoiceId,
+      invoiceNo,
+      customerId: input.customer_id ?? null,
+      customerName: custName
+    }
+
+    if (before === null) {
+      await recordEvent(client, {
+        ...evBase,
+        kind: 'created',
+        summary:
+          status === 'draft'
+            ? `Draft created with ${items.length} line${items.length === 1 ? '' : 's'}`
+            : `Invoice created and issued as ${invoiceNo}`,
+        detail: { status, total: totals.total, items: items.length }
+      })
+    } else {
+      // Describe what actually moved, so the trail is worth reading.
+      const changes: string[] = []
+      if (round2(before.total) !== round2(totals.total)) {
+        changes.push(`total ${before.total.toFixed(2)} to ${totals.total.toFixed(2)}`)
+      }
+      if (before.itemCount !== items.length) {
+        changes.push(`${before.itemCount} to ${items.length} lines`)
+      }
+      if (before.status !== status) changes.push(`${before.status} to ${status}`)
+
+      await recordEvent(client, {
+        ...evBase,
+        kind: before.status !== status ? 'status' : 'updated',
+        summary: changes.length ? `Edited: ${changes.join(', ')}` : 'Edited with no change to the figures',
+        detail: {
+          from: { total: before.total, items: before.itemCount, status: before.status },
+          to: { total: totals.total, items: items.length, status }
+        }
+      })
+    }
+
     return { ...inv.rows[0], items: its.rows }
   })
 }
@@ -308,6 +451,7 @@ export async function setInvoiceStatus(id: number, status: InvoiceStatus): Promi
     if (status !== 'draft' && invoiceNo.startsWith('DRAFT-')) {
       invoiceNo = await nextInvoiceNo(client)
       await client.query('UPDATE invoices SET invoice_no = $1 WHERE id = $2', [invoiceNo, id])
+      await renumberEvents(client, id, invoiceNo)
     }
 
     await client.query('UPDATE invoices SET status = $1, updated_at = now() WHERE id = $2', [status, id])
@@ -315,6 +459,20 @@ export async function setInvoiceStatus(id: number, status: InvoiceStatus): Promi
     const shouldApply = CONSUMES_STOCK.includes(status)
     if (shouldApply && !applied) await applyStock(client, id, invoiceNo, 1)
     if (!shouldApply && applied) await applyStock(client, id, invoiceNo, -1)
+
+    const who = await client.query<{ customer_id: number | null; customer_snapshot: unknown }>(
+      'SELECT customer_id, customer_snapshot FROM invoices WHERE id = $1',
+      [id]
+    )
+    await recordEvent(client, {
+      invoiceId: id,
+      invoiceNo,
+      customerId: who.rows[0]?.customer_id ?? null,
+      customerName: snapshotName(who.rows[0]?.customer_snapshot),
+      kind: 'status',
+      summary: `Status changed from ${prevStatus} to ${status}`,
+      detail: { from: prevStatus, to: status }
+    })
   })
 
   const out = await getInvoice(id)
@@ -324,12 +482,32 @@ export async function setInvoiceStatus(id: number, status: InvoiceStatus): Promi
 
 export async function deleteInvoice(id: number): Promise<void> {
   await withTransaction(async (client) => {
-    const prev = await client.query<{ stock_applied: boolean; invoice_no: string }>(
-      'SELECT stock_applied, invoice_no FROM invoices WHERE id = $1 FOR UPDATE',
+    const prev = await client.query<{
+      stock_applied: boolean
+      invoice_no: string
+      customer_id: number | null
+      customer_snapshot: unknown
+      total: number
+      status: InvoiceStatus
+    }>(
+      `SELECT stock_applied, invoice_no, customer_id, customer_snapshot, total, status
+       FROM invoices WHERE id = $1 FOR UPDATE`,
       [id]
     )
     if (prev.rowCount === 0) return
     if (prev.rows[0].stock_applied) await applyStock(client, id, prev.rows[0].invoice_no, -1)
+
+    // Recorded before the row goes, so the trail keeps the number and customer.
+    await recordEvent(client, {
+      invoiceId: id,
+      invoiceNo: prev.rows[0].invoice_no,
+      customerId: prev.rows[0].customer_id,
+      customerName: snapshotName(prev.rows[0].customer_snapshot),
+      kind: 'deleted',
+      summary: `Invoice ${prev.rows[0].invoice_no} deleted`,
+      detail: { total: num(prev.rows[0].total), status: prev.rows[0].status }
+    })
+
     await client.query('DELETE FROM invoices WHERE id = $1', [id]) // items + payments cascade
   })
 }
@@ -337,7 +515,7 @@ export async function deleteInvoice(id: number): Promise<void> {
 export async function duplicateInvoice(id: number): Promise<InvoiceWithItems> {
   const src = await getInvoice(id)
   if (!src) throw new Error('Invoice not found.')
-  return saveInvoice({
+  const copy = await saveInvoice({
     invoice_date: new Date().toISOString().slice(0, 10),
     due_date: null,
     customer_id: src.customer_id,
@@ -356,6 +534,20 @@ export async function duplicateInvoice(id: number): Promise<InvoiceWithItems> {
     terms: src.terms,
     items: src.items.map((i) => ({ ...i, id: undefined, invoice_id: undefined }))
   })
+
+  await withTransaction((client) =>
+    recordEvent(client, {
+      invoiceId: copy.id,
+      invoiceNo: copy.invoice_no,
+      customerId: copy.customer_id ?? null,
+      customerName: snapshotName(copy.customer_snapshot),
+      kind: 'duplicated',
+      summary: `Copied from ${src.invoice_no}`,
+      detail: { fromInvoiceId: src.id, fromInvoiceNo: src.invoice_no }
+    })
+  )
+
+  return copy
 }
 
 // ─────────────────────── Payments ───────────────────────
@@ -400,6 +592,7 @@ export async function addPayment(args: {
       if (invoiceNo.startsWith('DRAFT-')) {
         invoiceNo = await nextInvoiceNo(client)
         await client.query('UPDATE invoices SET invoice_no = $1 WHERE id = $2', [invoiceNo, args.invoiceId])
+        await renumberEvents(client, args.invoiceId, invoiceNo)
       }
       if (!inv.rows[0].stock_applied) await applyStock(client, args.invoiceId, invoiceNo, 1)
     }
@@ -409,6 +602,23 @@ export async function addPayment(args: {
       'UPDATE invoices SET paid_amount = $1, status = $2, updated_at = now() WHERE id = $3',
       [paid, nextStatus, args.invoiceId]
     )
+
+    const who = await client.query<{ customer_id: number | null; customer_snapshot: unknown }>(
+      'SELECT customer_id, customer_snapshot FROM invoices WHERE id = $1',
+      [args.invoiceId]
+    )
+    const balance = round2(Number(inv.rows[0].total) - paid)
+    await recordEvent(client, {
+      invoiceId: args.invoiceId,
+      invoiceNo,
+      customerId: who.rows[0]?.customer_id ?? null,
+      customerName: snapshotName(who.rows[0]?.customer_snapshot),
+      kind: 'payment',
+      summary:
+        `Payment of ${amount.toFixed(2)} by ${args.method || 'cash'}` +
+        (balance > 0 ? `, ${balance.toFixed(2)} still due` : ', paid in full'),
+      detail: { amount, method: args.method || 'cash', paidOn: args.paidOn, paid, balance, status: nextStatus }
+    })
   })
 
   const out = await getInvoice(args.invoiceId)
@@ -418,12 +628,13 @@ export async function addPayment(args: {
 
 export async function deletePayment(paymentId: number): Promise<void> {
   await withTransaction(async (client) => {
-    const p = await client.query<{ invoice_id: number }>(
-      'SELECT invoice_id FROM payments WHERE id = $1',
+    const p = await client.query<{ invoice_id: number; amount: number }>(
+      'SELECT invoice_id, amount FROM payments WHERE id = $1',
       [paymentId]
     )
     if (p.rowCount === 0) return
     const invoiceId = p.rows[0].invoice_id
+    const removed = round2(num(p.rows[0].amount))
 
     await client.query('DELETE FROM payments WHERE id = $1', [paymentId])
 
@@ -442,5 +653,20 @@ export async function deletePayment(paymentId: number): Promise<void> {
       nextStatus,
       invoiceId
     ])
+
+    const who = await client.query<{
+      customer_id: number | null
+      customer_snapshot: unknown
+      invoice_no: string
+    }>('SELECT customer_id, customer_snapshot, invoice_no FROM invoices WHERE id = $1', [invoiceId])
+    await recordEvent(client, {
+      invoiceId,
+      invoiceNo: who.rows[0]?.invoice_no ?? '',
+      customerId: who.rows[0]?.customer_id ?? null,
+      customerName: snapshotName(who.rows[0]?.customer_snapshot),
+      kind: 'payment_removed',
+      summary: `Payment of ${removed.toFixed(2)} removed, ${paid.toFixed(2)} now recorded as paid`,
+      detail: { removed, paid, status: nextStatus }
+    })
   })
 }

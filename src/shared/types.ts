@@ -97,6 +97,8 @@ export interface CompanySettings {
   default_notes: string
   /** Shown under the terms block on every invoice, e.g. the published T&Cs page. */
   terms_url: string
+  /** The wording of that link. Falls back to "Terms & Conditions". */
+  terms_link_text: string
 }
 
 // ───────────────────────────── Invoices ─────────────────────────────
@@ -312,6 +314,28 @@ export interface TemplateConfig {
     spaceAfter?: number
   }
 
+  /**
+   * A rubber stamp placed over the invoice - PAID, CANCELLED and so on. Unlike
+   * the watermark this is small, opaque and sits in one corner, the way a
+   * stamp would actually be pressed onto paper.
+   */
+  stamp?: {
+    enabled: boolean
+    /** auto = choose from the invoice status; or force one design. */
+    design: 'auto' | 'paid' | 'partial' | 'unpaid' | 'cancelled' | 'draft' | 'duplicate' | 'original' | 'received' | 'custom'
+    /** Used when design is `custom`: a PNG/JPG/SVG data URL. */
+    imageDataUrl: string
+    color: string
+    width: number
+    opacity: number
+    rotation: number
+    position: 'top-left' | 'top-right' | 'middle-left' | 'middle-right' | 'bottom-left' | 'bottom-right' | 'center'
+    offsetX: number
+    offsetY: number
+    /** Hide the stamp on drafts, which are not usually sent out. */
+    hideOnDraft?: boolean
+  }
+
   // ── Footer ──
   footer: {
     enabled: boolean
@@ -322,6 +346,12 @@ export interface TemplateConfig {
     textColor: string
     paddingY: number
     borderTop: boolean
+    /**
+     * Pin the footer to the bottom of the page instead of letting it sit
+     * directly under the content. Default on. In a multi-page invoice this
+     * means the bottom of every page.
+     */
+    stickToBottom?: boolean
     showPageNumbers: boolean
     pageNumberFormat: string // e.g. "Page {{page}} of {{pages}}"
   }
@@ -488,6 +518,28 @@ export interface ApiErr {
   ok: false
   error: string
 }
+/** One entry in an invoice's audit trail. */
+export type InvoiceEventKind =
+  | 'created'
+  | 'updated'
+  | 'status'
+  | 'payment'
+  | 'payment_removed'
+  | 'duplicated'
+  | 'deleted'
+
+export interface InvoiceEvent {
+  id: number
+  invoice_id: number | null
+  invoice_no: string
+  customer_id: number | null
+  customer_name: string
+  kind: InvoiceEventKind
+  summary: string
+  detail: Record<string, unknown>
+  created_at: string
+}
+
 export type ApiResult<T> = ApiOk<T> | ApiErr
 
 export interface DbConfig {

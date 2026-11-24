@@ -96,6 +96,11 @@ const item = (p: Partial<InvoiceItem>): InvoiceItem => ({
   const pays = await invoices.listPayments(inv.id)
   const cfg = JSON.parse(JSON.stringify(TEMPLATE_PRESETS[0].config))
   cfg.totals.showAmountInWords = true
+  cfg.stamp = {
+    enabled: true, design: 'auto', imageDataUrl: '', color: '#000000', width: 160,
+    opacity: 0.9, rotation: -12, position: (process.env.STAMP_POS as never) || 'middle-left', offsetX: 0, offsetY: 0,
+    hideOnDraft: true
+  }
   // Prove the payment band colour is taken from the template.
   cfg.totals.partialColor = process.env.PARTIAL_COLOR || cfg.totals.partialColor
   cfg.totals.paymentTint = Number(process.env.PARTIAL_TINT || cfg.totals.paymentTint || 8)

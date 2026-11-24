@@ -13,11 +13,12 @@ const CHANNELS = [
   'categories:list', 'categories:create', 'categories:update', 'categories:delete',
 
   'customers:list', 'customers:get', 'customers:create', 'customers:update',
-  'customers:delete', 'customers:ledger',
+  'customers:delete', 'customers:ledger', 'customers:history',
 
   'invoices:list', 'invoices:get', 'invoices:save', 'invoices:setStatus', 'invoices:delete',
   'invoices:duplicate', 'invoices:nextNo', 'invoices:payments', 'invoices:addPayment',
   'invoices:deletePayment', 'invoices:html', 'invoices:previewHtml',
+  'invoices:history', 'invoices:recentHistory',
 
   'templates:list', 'templates:get', 'templates:default', 'templates:create', 'templates:update',
   'templates:duplicate', 'templates:setDefault', 'templates:delete', 'templates:restorePresets',

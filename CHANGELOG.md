@@ -3,6 +3,38 @@
 All notable changes to PackagingBox Invoice. Versions follow
 [semantic versioning](https://semver.org): `MAJOR.MINOR.PATCH`.
 
+## [1.3.0] - 2026-11-24
+
+### Added
+
+- **Invoice history.** Every invoice now keeps a trail of what happened to it -
+  created, edited, issued, cancelled, paid, payment removed, duplicated and
+  deleted - with who-changed-what spelled out ("Edited: total 112,000.00 to
+  118,600.00, 2 to 3 lines"). It appears as a timeline on the invoice itself,
+  and the Customers list has a **History** button showing everything across all
+  of that customer's invoices.
+  - The trail of a **deleted** invoice survives the deletion, with its number
+    and customer intact, so there is a record that it existed.
+  - Entries written while an invoice was a draft are renumbered when it is
+    issued, so the trail reads as one story rather than two.
+- **Stamps.** A rubber stamp can be pressed onto the invoice - PAID, PART PAID,
+  UNPAID, CANCELLED, DRAFT, ORIGINAL, DUPLICATE or RECEIVED - each with its own
+  ink colour and the invoice date inside the frame. Set it to **Automatic** and
+  it follows the invoice's status, or pick one to use always. You can also
+  upload a scan of your own stamp. Position, size, rotation, opacity and nudge
+  are all adjustable, and the automatic stamp stays off drafts.
+- **The footer sits at the foot of the page.** Previously it floated directly
+  under the content, so a short invoice had its footer halfway up the sheet. It
+  is now pinned to the bottom, and can be unpinned per template.
+
+### Changed
+
+- **The terms link reads as wording, not a web address.** The invoice shows
+  *Terms & Conditions* as a proper link instead of printing
+  `packagingbox.pk/terms-and-conditions` as text. The wording is yours to set
+  under Settings. The link stays clickable in the PDF, and anything that is not
+  an ordinary http(s) address is never turned into a link.
+
 ## [1.2.0] - 2026-11-24
 
 ### Added

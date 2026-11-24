@@ -171,10 +171,31 @@ CREATE TABLE IF NOT EXISTS payments (
 );
 CREATE INDEX IF NOT EXISTS idx_payments_invoice ON payments(invoice_id);
 
+-- =========================== History ===========================
+-- An append-only trail of what happened to each invoice. The invoice and
+-- customer references are SET NULL rather than CASCADE so the record of a
+-- deleted invoice survives; invoice_no and customer_name are copied in so the
+-- entry still reads sensibly afterwards.
+CREATE TABLE IF NOT EXISTS invoice_events (
+  id            SERIAL PRIMARY KEY,
+  invoice_id    INT REFERENCES invoices(id) ON DELETE SET NULL,
+  invoice_no    TEXT NOT NULL DEFAULT '',
+  customer_id   INT REFERENCES customers(id) ON DELETE SET NULL,
+  customer_name TEXT NOT NULL DEFAULT '',
+  kind          TEXT NOT NULL,
+  summary       TEXT NOT NULL DEFAULT '',
+  detail        JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_invoice_events_invoice ON invoice_events(invoice_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_invoice_events_customer ON invoice_events(customer_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_invoice_events_time ON invoice_events(created_at DESC);
+
 -- =========================== Migrations ===========================
 -- Columns added after the first release. ADD COLUMN IF NOT EXISTS is
 -- idempotent, so this runs harmlessly on every connect.
 ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS terms_url TEXT DEFAULT '';
+ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS terms_link_text TEXT DEFAULT '';
 
 -- Products that are made to order or bought in on demand have no meaningful
 -- stock figure. track_stock = FALSE means "unlimited": never deducted by an
@@ -182,5 +203,5 @@ ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS terms_url TEXT DEFAULT '';
 ALTER TABLE products ADD COLUMN IF NOT EXISTS track_stock BOOLEAN NOT NULL DEFAULT TRUE;
 
 INSERT INTO company_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
-INSERT INTO app_meta (key, value) VALUES ('schema_version','3') ON CONFLICT (key) DO UPDATE SET value = '3';
+INSERT INTO app_meta (key, value) VALUES ('schema_version','4') ON CONFLICT (key) DO UPDATE SET value = '4';
 `

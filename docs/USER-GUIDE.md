@@ -9,6 +9,8 @@ place, see [INSTALL.md](INSTALL.md).
 - [Making an invoice](#making-an-invoice)
 - [Round off](#round-off)
 - [Payments](#payments)
+- [Invoice history](#invoice-history)
+- [Stamps](#stamps)
 - [Printing and PDFs](#printing-and-pdfs)
 - [Invoice templates](#invoice-templates)
 - [Reports](#reports)
@@ -252,6 +254,62 @@ plain band. To hide the band entirely, turn off *Show payment status band*.
 
 ---
 
+## Invoice history
+
+Every invoice keeps a record of what has happened to it. Open an invoice and
+scroll to **History** to see it: created, edited, issued, cancelled, each
+payment taken or removed, and duplications - newest first, with both how long
+ago and the exact date and time.
+
+An edit says what actually moved, not just that something did:
+
+> **Edited** - Edited: total 112,000.00 to 118,600.00, 2 to 3 lines
+>
+> **Payment** - Payment of 50,000.00 by Bank Transfer, 68,600.00 still due
+>
+> **Status** - Status changed from draft to issued
+
+For the whole picture of one customer, go to **Customers** and press the
+**clock** button on their row. That shows everything across all of their
+invoices, each entry labelled with its invoice number.
+
+Two details worth knowing:
+
+- **Deleting an invoice does not erase its history.** The trail stays, with the
+  invoice number and customer on it, and a *Deleted* entry is added. So there is
+  always a record that the invoice existed and what happened to it.
+- Entries recorded while an invoice was still a draft are **renumbered** when it
+  is issued, so the whole trail carries the real invoice number.
+
+## Stamps
+
+A stamp is pressed onto the invoice the way a rubber stamp would be - small,
+solid and at an angle - as opposed to the watermark, which washes across the
+whole page. Set it up in the template designer under **Stamp**.
+
+**Which stamp.** Leave it on **Automatic** and it follows the invoice:
+
+| Invoice | Stamp |
+|---|---|
+| Paid in full | **PAID** (green) |
+| Part paid | **PART PAID** (amber) |
+| Issued, nothing paid | **UNPAID** (red) |
+| Cancelled | **CANCELLED** (red) |
+
+Or choose one to use on every invoice with that template - PAID, PART PAID,
+UNPAID, CANCELLED, DRAFT, ORIGINAL, DUPLICATE or RECEIVED. Each carries the
+invoice date inside the frame.
+
+**Your own stamp.** Choose *My own image* and upload a scan of your company
+stamp. A PNG with a transparent background looks best.
+
+**Placing it.** Pick one of seven positions, then set the size, rotation,
+opacity and a nudge across or down. The default sits in the clear space beside
+the totals so it does not cover the signature line.
+
+Drafts are not stamped by the automatic setting, since they are not usually
+sent out. An explicitly chosen stamp still prints on them.
+
 ## Printing and PDFs
 
 - **⛶ Preview** — the whole invoice at full size, exactly as it will print.
@@ -285,7 +343,8 @@ beside it. You can change:
 | Items table | Which of 10 columns appear, their heading, width, alignment and order; zebra striping; grid lines; row height; padding |
 | Totals | Position and width; which rows show; amount in words (crore/lakh); the payment status band and **its colours**; space below |
 | Blocks | Notes, terms, payment details, signature, thank-you line |
-| Footer | Text with placeholders, alignment, colours, page numbers |
+| Footer | Text with placeholders, alignment, colours, page numbers, and whether it is pinned to the foot of the page |
+| Stamp | PAID / UNPAID / CANCELLED and the rest, or your own image; colour, position, size, rotation, opacity |
 | Watermark | Text or image, size, colour, opacity, rotation, tiling, and automatic DRAFT / PAID / CANCELLED stamps |
 
 Header, footer and title text accept placeholders:

@@ -105,7 +105,7 @@ async function main(): Promise<void> {
     const t = await query<{ table_name: string }>(
       "select table_name from information_schema.tables where table_schema='public'"
     )
-    eq(t.length, 10, 'table count')
+    eq(t.length, 11, 'table count')
   })
   await check('54 categories seeded', async () => {
     const r = await queryOne<{ n: number }>('select count(*)::int n from categories')
@@ -806,9 +806,9 @@ async function main(): Promise<void> {
   const unpaidId = await newInvoice('issued', 1000)
   await check('the terms link is printed under the terms block', async () => {
     const html = await renderWith(unpaidId)
-    ok(html.includes('Full terms &amp; conditions:'), 'label present')
-    ok(html.includes('packagingbox.pk/terms-and-conditions'), 'url present')
-    ok(!/terms-link[^>]*>[^<]*https:/.test(html), 'scheme stripped so the line does not wrap badly')
+    ok(/class="terms-link"><a href="/.test(html), 'rendered as a link')
+    ok(html.includes('packagingbox.pk/terms-and-conditions'), 'pointing at the terms page')
+    ok(/>[^<]*Terms &amp; Conditions<\/a>/.test(html), 'the wording is the link text, not the address')
   })
 
   await check('an unpaid invoice shows the UNPAID band with the amount due', async () => {
@@ -1158,6 +1158,224 @@ async function main(): Promise<void> {
     })
     ok(html.includes('#b45309'), 'default partial colour')
     ok(html.includes('PARTIALLY PAID'), 'band still renders')
+  })
+
+  // ----------- 15. Footer, terms anchor, stamps, history -----------
+  g('Footer position & terms link')
+
+  await check('the footer is pinned to the foot of the page by default', async () => {
+    const html = await renderWith(paidId)
+    ok(/\.doc-footer \{[^}]*margin-top: auto/.test(html), 'footer pushed to the bottom')
+    ok(/\.doc-footer\.repeat \{[\s\S]*?position: fixed/.test(html), 'and fixed for print')
+  })
+
+  await check('pinning can be turned off, and then it flows under the content', async () => {
+    const html = await renderWith(paidId, (c) => {
+      ;(c as Record<string, Record<string, unknown>>).footer.stickToBottom = false
+      ;(c as Record<string, Record<string, unknown>>).footer.showOnAllPages = false
+    })
+    ok(/\.doc-footer \{[^}]*margin-top: 12px/.test(html), 'normal flow')
+    ok(!/\.sheet \{ display: flex/.test(html), 'no flex push-down')
+  })
+
+  await check('the terms link is wording, not a bare address', async () => {
+    await settings.updateCompanySettings({
+      terms_url: 'https://packagingbox.pk/terms-and-conditions/',
+      terms_link_text: 'Our Terms & Conditions'
+    })
+    const html = await renderWith(unpaidId)
+    ok(html.includes('Our Terms &amp; Conditions</a>'), 'the wording is the link text')
+    ok(html.includes('href="https://packagingbox.pk/terms-and-conditions/"'), 'still clickable')
+    ok(!/terms-link[^>]*>\s*Full terms &amp; conditions: packagingbox/.test(html),
+      'the raw address is no longer printed as text')
+  })
+
+  await check('the link falls back to sensible wording when none is set', async () => {
+    await settings.updateCompanySettings({ terms_link_text: '' })
+    const html = await renderWith(unpaidId)
+    ok(html.includes('>Terms &amp; Conditions</a>'), 'default wording used')
+  })
+
+  await check('a non-http address is never turned into a link', async () => {
+    await settings.updateCompanySettings({ terms_url: 'javascript:alert(1)' })
+    const html = await renderWith(unpaidId)
+    ok(!html.includes('javascript:'), 'refused')
+    ok(!/class="terms-link"/.test(html), 'no link rendered at all')
+    await settings.updateCompanySettings({ terms_url: 'packagingbox.pk/terms-and-conditions/' })
+    const html2 = await renderWith(unpaidId)
+    ok(html2.includes('href="https://packagingbox.pk/terms-and-conditions/"'), 'bare domain upgraded to https')
+  })
+
+  g('Stamps')
+
+  const withStamp = (over: Record<string, unknown>) => (c: Record<string, never>): void => {
+    ;(c as unknown as Record<string, unknown>).stamp = {
+      enabled: true, design: 'auto', imageDataUrl: '', color: '#000000', width: 150,
+      opacity: 0.9, rotation: -12, position: 'bottom-right', offsetX: 0, offsetY: 0,
+      hideOnDraft: true, ...over
+    }
+  }
+
+  await check('no stamp unless the template asks for one', async () => {
+    const html = await renderWith(paidId)
+    ok(!html.includes('class="stamp'), 'nothing stamped by default')
+  })
+
+  await check('the automatic stamp follows the invoice status', async () => {
+    const paidHtml = await renderWith(paidId, withStamp({}))
+    ok(/stamp-text"[^>]*>PAID</.test(paidHtml), 'a settled invoice gets PAID')
+
+    const partHtml = await renderWith(partialId, withStamp({}))
+    ok(/stamp-text"[^>]*>PART PAID</.test(partHtml), 'a part-paid invoice says so')
+
+    const unpaidHtml = await renderWith(unpaidId, withStamp({}))
+    ok(/stamp-text"[^>]*>UNPAID</.test(unpaidHtml), 'an unpaid invoice gets UNPAID')
+  })
+
+  await check('a chosen stamp overrides the status', async () => {
+    const html = await renderWith(unpaidId, withStamp({ design: 'duplicate' }))
+    ok(/stamp-text"[^>]*>DUPLICATE</.test(html), 'DUPLICATE used on an unpaid invoice')
+    ok(!/stamp-text"[^>]*>UNPAID</.test(html), 'status ignored')
+  })
+
+  await check('each design carries its own ink colour unless one is chosen', async () => {
+    const auto = await renderWith(paidId, withStamp({}))
+    ok(auto.includes('#15803d'), 'PAID is green')
+    const custom = await renderWith(paidId, withStamp({ color: '#7c3aed' }))
+    ok(custom.includes('#7c3aed'), 'a chosen colour wins')
+  })
+
+  await check('position, size, rotation and opacity reach the markup', async () => {
+    const html = await renderWith(paidId, withStamp({
+      position: 'top-left', width: 220, rotation: 25, opacity: 0.5, offsetX: 10, offsetY: -20
+    }))
+    ok(html.includes('stamp-top-left'), 'position class')
+    ok(html.includes('font-size:25.9pt'), 'the width setting scales the lettering')
+    ok(html.includes('rotate(25deg)'), 'rotation')
+    ok(html.includes('translate(10px, -20px)'), 'nudge')
+    ok(html.includes('opacity:0.5'), 'opacity')
+  })
+
+  await check('a custom stamp image is used when supplied', async () => {
+    const dataUrl = 'data:image/png;base64,iVBORw0KGgo='
+    const html = await renderWith(paidId, withStamp({ design: 'custom', imageDataUrl: dataUrl }))
+    ok(html.includes(dataUrl), 'image rendered')
+    ok(!/<div class="stamp-text/.test(html), 'no text stamp as well')
+  })
+
+  await check('a custom stamp with no image renders nothing rather than an empty box', async () => {
+    const html = await renderWith(paidId, withStamp({ design: 'custom', imageDataUrl: '' }))
+    ok(!html.includes('<div class="stamp'), 'nothing drawn')
+  })
+
+  await check('the automatic stamp is hidden on drafts', async () => {
+    const dId = await newInvoice('draft', 400)
+    const html = await renderWith(dId, withStamp({}))
+    ok(!html.includes('<div class="stamp'), 'drafts are not stamped')
+    const forced = await renderWith(dId, withStamp({ design: 'draft' }))
+    ok(/stamp-text"[^>]*>DRAFT</.test(forced), 'but an explicit DRAFT stamp still prints')
+  })
+
+  g('Invoice history')
+
+  let histId = 0
+  await check('creating an invoice records it', async () => {
+    const inv = await invoices.saveInvoice({
+      invoice_date: '2026-04-01', due_date: null, customer_id: cid, template_id: null,
+      po_number: '', discount_type: 'amount', discount_value: 0, tax_enabled: false,
+      shipping: 0, round_off: 0, paid_amount: 0, status: 'draft', notes: '', terms: '',
+      items: [item({ name: 'History line', qty: 2, unit_price: 500 })]
+    } as never)
+    histId = inv.id
+    const h = await invoices.listInvoiceHistory(histId)
+    eq(h.length, 1, 'one entry')
+    eq(h[0].kind, 'created')
+    ok(/Draft created/.test(h[0].summary), 'reads sensibly: ' + h[0].summary)
+  })
+
+  await check('an edit records what actually changed', async () => {
+    const cur = await invoices.getInvoice(histId)
+    await invoices.saveInvoice({
+      ...cur!, id: histId,
+      items: [
+        item({ name: 'History line', qty: 2, unit_price: 500 }),
+        item({ name: 'Second line', qty: 1, unit_price: 250 })
+      ]
+    } as never)
+    const h = await invoices.listInvoiceHistory(histId)
+    eq(h[0].kind, 'updated')
+    ok(/1000\.00 to 1250\.00/.test(h[0].summary), 'the total change is named: ' + h[0].summary)
+    ok(/1 to 2 lines/.test(h[0].summary), 'the line count change is named')
+  })
+
+  await check('issuing records a status change', async () => {
+    await invoices.setInvoiceStatus(histId, 'issued')
+    const h = await invoices.listInvoiceHistory(histId)
+    eq(h[0].kind, 'status')
+    ok(/draft to issued/.test(h[0].summary), 'got: ' + h[0].summary)
+  })
+
+  await check('a payment is recorded with its method and the balance left', async () => {
+    await invoices.addPayment({ invoiceId: histId, amount: 250, method: 'easypaisa', paidOn: '2026-04-02' })
+    const h = await invoices.listInvoiceHistory(histId)
+    eq(h[0].kind, 'payment')
+    ok(/easypaisa/i.test(h[0].summary), 'method named: ' + h[0].summary)
+    ok(/1000\.00 still due/.test(h[0].summary), 'balance named')
+  })
+
+  await check('removing a payment is recorded too', async () => {
+    const ps = await invoices.listPayments(histId)
+    await invoices.deletePayment(ps[0].id)
+    const h = await invoices.listInvoiceHistory(histId)
+    eq(h[0].kind, 'payment_removed')
+    ok(/250\.00 removed/.test(h[0].summary), 'got: ' + h[0].summary)
+  })
+
+  await check('the trail is newest first and complete', async () => {
+    const h = await invoices.listInvoiceHistory(histId)
+    ok(h.length >= 5, 'every step kept, got ' + h.length)
+    const times = h.map((e) => Date.parse(e.created_at))
+    ok(times.every((t, i) => i === 0 || times[i - 1] >= t), 'newest first')
+    const kinds = h.map((e) => e.kind)
+    for (const k of ['created', 'updated', 'status', 'payment', 'payment_removed']) {
+      ok(kinds.includes(k as never), 'missing a ' + k + ' entry')
+    }
+  })
+
+  await check('a duplicate records where it came from', async () => {
+    const dup = await invoices.duplicateInvoice(histId)
+    const h = await invoices.listInvoiceHistory(dup.id)
+    ok(h.some((e) => e.kind === 'duplicated'), 'duplication recorded')
+    const d = h.find((e) => e.kind === 'duplicated')!
+    ok(d.summary.includes('Copied from'), 'says so: ' + d.summary)
+    await invoices.deleteInvoice(dup.id)
+  })
+
+  await check('customer history spans every invoice of that customer', async () => {
+    const h = await invoices.listCustomerHistory(cid)
+    ok(h.length >= 5, 'entries found: ' + h.length)
+    const nos = new Set(h.map((e) => e.invoice_no))
+    ok(nos.size >= 1, 'invoice numbers carried on each entry')
+    ok(h.every((e) => e.customer_id === cid), 'all belong to this customer')
+  })
+
+  await check('deleting an invoice keeps its history, with the number intact', async () => {
+    const before = (await invoices.listCustomerHistory(cid)).length
+    const no = (await invoices.getInvoice(histId))!.invoice_no
+    await invoices.deleteInvoice(histId)
+
+    const after = await invoices.listCustomerHistory(cid)
+    ok(after.length > before, 'a deletion entry was added, not a wipe')
+    const del = after.find((e) => e.kind === 'deleted' && e.invoice_no === no)
+    ok(!!del, 'the deletion itself is recorded against the right number')
+    ok(after.some((e) => e.invoice_no === no && e.kind === 'created'),
+      'the earlier trail of the deleted invoice survived')
+  })
+
+  await check('recent history covers every invoice', async () => {
+    const r = await invoices.listRecentHistory(50)
+    ok(r.length > 0, 'entries returned')
+    ok(r.length <= 50, 'limit respected')
   })
 
   // ═══════════ teardown ═══════════

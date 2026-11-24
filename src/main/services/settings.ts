@@ -11,7 +11,7 @@ const EDITABLE: (keyof CompanySettings)[] = [
   'name', 'legal_name', 'address', 'city', 'country', 'phone', 'phone_alt', 'email', 'website',
   'ntn', 'strn', 'logo_data_url', 'signature_data_url', 'bank_details', 'currency_symbol',
   'currency_code', 'default_tax_rate', 'tax_enabled_default', 'invoice_prefix',
-  'invoice_next_number', 'invoice_pad', 'default_terms', 'default_notes', 'terms_url'
+  'invoice_next_number', 'invoice_pad', 'default_terms', 'default_notes', 'terms_url', 'terms_link_text'
 ]
 
 export async function updateCompanySettings(patch: Partial<CompanySettings>): Promise<CompanySettings> {

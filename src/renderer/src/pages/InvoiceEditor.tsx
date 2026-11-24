@@ -3,6 +3,7 @@ import { api } from '../lib/api'
 import { CustomerEditor } from './Customers'
 import { Modal, Spinner, useDebounced, useToast } from '../components/ui'
 import InvoicePreview from '../components/InvoicePreview'
+import HistoryTimeline from '../components/HistoryTimeline'
 import { computeTotals, formatMoney, formatQty, lineNet, num, round2 } from '@shared/calc'
 import type {
   CompanySettings, Customer, Invoice, InvoiceItem, InvoiceStatus, InvoiceTemplate,
@@ -77,6 +78,8 @@ export default function InvoiceEditor({ invoiceId, navigate }: EditorProps): Rea
     }
   })
   const [fullPreview, setFullPreview] = useState(false)
+  // Bumped whenever something happens that the trail should pick up.
+  const [historyTick, setHistoryTick] = useState(0)
 
   useEffect(() => {
     try {
@@ -292,6 +295,7 @@ export default function InvoiceEditor({ invoiceId, navigate }: EditorProps): Rea
       setStatus(saved.status)
       setItems(saved.items.length ? saved.items : [blankItem()])
       setDirty(false)
+      setHistoryTick((t) => t + 1)
       toast.success(`Invoice ${saved.invoice_no} saved.`)
       return saved
     } catch (err) {
@@ -828,6 +832,7 @@ export default function InvoiceEditor({ invoiceId, navigate }: EditorProps): Rea
                                   setStatus(inv.status)
                                 }
                                 setPayments(await api.listPayments(savedInvoice.id))
+                                setHistoryTick((t) => t + 1)
                                 toast.success('Payment removed.')
                               } catch (err) {
                                 toast.error(err)
@@ -842,6 +847,21 @@ export default function InvoiceEditor({ invoiceId, navigate }: EditorProps): Rea
                   </tbody>
                 </table>
               )}
+            </div>
+          ) : null}
+
+          {/* ── History ── */}
+          {savedInvoice ? (
+            <div className="card">
+              <h3 className="card-title">
+                History
+                <span className="count">everything that happened to this invoice</span>
+              </h3>
+              <HistoryTimeline
+                key={`${savedInvoice.id}-${historyTick}`}
+                invoiceId={savedInvoice.id}
+                emptyText="Edits, status changes and payments will be listed here."
+              />
             </div>
           ) : null}
 
@@ -931,6 +951,7 @@ export default function InvoiceEditor({ invoiceId, navigate }: EditorProps): Rea
             setSavedInvoice(inv)
             setStatus(inv.status)
             setPayments(await api.listPayments(inv.id))
+            setHistoryTick((t) => t + 1)
           }}
         />
       ) : null}
