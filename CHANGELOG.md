@@ -3,6 +3,23 @@
 All notable changes to PackagingBox Invoice. Versions follow
 [semantic versioning](https://semver.org): `MAJOR.MINOR.PATCH`.
 
+## [1.5.3] - 2026-11-24
+
+### Changed
+
+- **New app icon**: the packaging-box artwork on a white plate with rounded
+  corners, used for the application, the installer, the desktop shortcut and
+  the taskbar.
+
+  The supplied artwork was white line work on a transparent background, which
+  would have been invisible on a white plate, so the shape is used as a stencil
+  and inked in dark charcoal. The smallest sizes are drawn with less padding
+  and built up over several passes, because thin strokes otherwise average away
+  to pale grey when scaled down to 16px.
+
+  `scripts/build-icon.ps1` regenerates every size from `build/icon-source.png`,
+  so the icon can be changed - or re-inked - without redoing this by hand.
+
 ## [1.5.2] - 2026-11-24
 
 **The first version published as a downloadable release on GitHub.** Everything
