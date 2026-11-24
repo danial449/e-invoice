@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { api } from '../lib/api'
 import type { BackupFile, BackupSettings, BackupToolStatus, DbStatus } from '../lib/api'
 import { ConfirmDialog, NumberField, Spinner, Toggle, useToast } from '../components/ui'
+import SignaturePad from '../components/SignaturePad'
 import { formatInvoiceNoPreview } from '../lib/format'
 import type { CompanySettings, DbConfig } from '@shared/types'
 import type { NavProps } from '../App'
@@ -20,6 +21,7 @@ export default function SettingsPage({ onDbChange }: Props): React.JSX.Element {
   const [loadError, setLoadError] = useState('')
   const [saving, setSaving] = useState(false)
   const [dirty, setDirty] = useState(false)
+  const [drawingSignature, setDrawingSignature] = useState(false)
 
   const loadSettings = useCallback(async (): Promise<void> => {
     setLoading(true)
@@ -219,8 +221,11 @@ export default function SettingsPage({ onDbChange }: Props): React.JSX.Element {
                 </div>
 
                 <div className="field">
-                  <label>Signature image</label>
-                  <div className="flex gap8">
+                  <label>Signature</label>
+                  <div className="flex gap8 wrap">
+                    <button className="btn-sm btn-primary" onClick={() => setDrawingSignature(true)}>
+                      ✎ Draw signature
+                    </button>
                     <button
                       className="btn-sm"
                       onClick={async () => {
@@ -232,7 +237,7 @@ export default function SettingsPage({ onDbChange }: Props): React.JSX.Element {
                         }
                       }}
                     >
-                      Choose image…
+                      Upload image…
                     </button>
                     {settings.signature_data_url ? (
                       <button className="btn-sm btn-danger" onClick={() => set('signature_data_url', '')}>
@@ -247,7 +252,10 @@ export default function SettingsPage({ onDbChange }: Props): React.JSX.Element {
                       style={{ maxWidth: 220, maxHeight: 70, marginTop: 10, background: '#fff', padding: 6, borderRadius: 4 }}
                     />
                   ) : (
-                    <div className="help mt8">Optional. Appears above the signature line.</div>
+                    <div className="help mt8">
+                      Optional. Appears above the signature line on every invoice. Draw it here, or
+                      upload a scan.
+                    </div>
                   )}
                 </div>
               </div>
@@ -438,6 +446,18 @@ export default function SettingsPage({ onDbChange }: Props): React.JSX.Element {
         {/* ─────────── About ─────────── */}
         {tab === 'about' ? <AboutTab /> : null}
       </div>
+
+      {drawingSignature && settings ? (
+        <SignaturePad
+          initial={settings.signature_data_url}
+          onCancel={() => setDrawingSignature(false)}
+          onSave={(dataUrl) => {
+            set('signature_data_url', dataUrl)
+            setDrawingSignature(false)
+            toast.success('Signature captured. Remember to Save.')
+          }}
+        />
+      ) : null}
     </>
   )
 }

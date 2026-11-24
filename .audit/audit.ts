@@ -1304,8 +1304,66 @@ async function main(): Promise<void> {
     } as never)
     const h = await invoices.listInvoiceHistory(histId)
     eq(h[0].kind, 'updated')
-    ok(/1000\.00 to 1250\.00/.test(h[0].summary), 'the total change is named: ' + h[0].summary)
-    ok(/1 to 2 lines/.test(h[0].summary), 'the line count change is named')
+    ok(/1 to 2 lines/.test(h[0].summary), 'the line count change is named: ' + h[0].summary)
+    ok(/total 1000\.00 to 1250\.00/.test(h[0].summary), 'the total change is named')
+  })
+
+  await check('an edit to the customer, dates or PO is reported, not called "no change"', async () => {
+    const cur = await invoices.getInvoice(histId)
+    await invoices.saveInvoice({
+      ...cur!, id: histId, customer_id: cid, po_number: 'PO-9981', due_date: '2026-05-15'
+    } as never)
+    const h = await invoices.listInvoiceHistory(histId)
+    eq(h[0].kind, 'updated')
+    ok(!/no changes/.test(h[0].summary), 'should not claim nothing happened: ' + h[0].summary)
+    ok(/PO/.test(h[0].summary), 'the PO change is named: ' + h[0].summary)
+    ok(/due date/.test(h[0].summary), 'the due date change is named: ' + h[0].summary)
+  })
+
+  await check('a change to the money fields is reported', async () => {
+    const cur = await invoices.getInvoice(histId)
+    await invoices.saveInvoice({
+      ...cur!, id: histId, discount_type: 'amount', discount_value: 100, shipping: 350, round_off: -0.5
+    } as never)
+    const h = await invoices.listInvoiceHistory(histId)
+    ok(/discount/.test(h[0].summary), 'discount named: ' + h[0].summary)
+    ok(/delivery/.test(h[0].summary), 'delivery named')
+    ok(/round off/.test(h[0].summary), 'round off named')
+    ok(/total/.test(h[0].summary), 'total named')
+  })
+
+  await check('editing the wording is reported', async () => {
+    const cur = await invoices.getInvoice(histId)
+    await invoices.saveInvoice({
+      ...cur!, id: histId, notes: 'Deliver to the back gate', terms: 'Payment within 7 days'
+    } as never)
+    const h = await invoices.listInvoiceHistory(histId)
+    ok(/notes edited/.test(h[0].summary), 'notes: ' + h[0].summary)
+    ok(/terms edited/.test(h[0].summary), 'terms: ' + h[0].summary)
+  })
+
+  await check('changing a line price is reported as a changed line', async () => {
+    const cur = await invoices.getInvoice(histId)
+    await invoices.saveInvoice({
+      ...cur!, id: histId,
+      items: cur!.items.map((i, n) => (n === 0 ? { ...i, unit_price: 777 } : i))
+    } as never)
+    const h = await invoices.listInvoiceHistory(histId)
+    ok(/1 line changed/.test(h[0].summary), 'got: ' + h[0].summary)
+  })
+
+  await check('re-saving an untouched invoice says so plainly', async () => {
+    const cur = await invoices.getInvoice(histId)
+    await invoices.saveInvoice({ ...cur!, id: histId } as never)
+    const h = await invoices.listInvoiceHistory(histId)
+    eq(h[0].summary, 'Saved with no changes')
+  })
+
+  await check('tax being switched on is reported', async () => {
+    const cur = await invoices.getInvoice(histId)
+    await invoices.saveInvoice({ ...cur!, id: histId, tax_enabled: true } as never)
+    const h = await invoices.listInvoiceHistory(histId)
+    ok(/sales tax turned on/.test(h[0].summary), 'got: ' + h[0].summary)
   })
 
   await check('issuing records a status change', async () => {
@@ -1316,11 +1374,13 @@ async function main(): Promise<void> {
   })
 
   await check('a payment is recorded with its method and the balance left', async () => {
+    const inv = await invoices.getInvoice(histId)
+    const expected = (Number(inv!.total) - 250).toFixed(2)
     await invoices.addPayment({ invoiceId: histId, amount: 250, method: 'easypaisa', paidOn: '2026-04-02' })
     const h = await invoices.listInvoiceHistory(histId)
     eq(h[0].kind, 'payment')
     ok(/easypaisa/i.test(h[0].summary), 'method named: ' + h[0].summary)
-    ok(/1000\.00 still due/.test(h[0].summary), 'balance named')
+    ok(h[0].summary.includes(expected + ' still due'), `balance ${expected} named: ` + h[0].summary)
   })
 
   await check('removing a payment is recorded too', async () => {
@@ -1357,6 +1417,32 @@ async function main(): Promise<void> {
     const nos = new Set(h.map((e) => e.invoice_no))
     ok(nos.size >= 1, 'invoice numbers carried on each entry')
     ok(h.every((e) => e.customer_id === cid), 'all belong to this customer')
+  })
+
+  await check('entries from before a customer was set move to that customer', async () => {
+    // An invoice raised for a walk-in, then assigned to a customer.
+    const walkIn = await invoices.saveInvoice({
+      invoice_date: '2026-05-01', due_date: null, customer_id: null, template_id: null,
+      po_number: '', discount_type: 'amount', discount_value: 0, tax_enabled: false,
+      shipping: 0, round_off: 0, paid_amount: 0, status: 'issued', notes: '', terms: '',
+      items: [item({ name: 'Counter sale', qty: 1, unit_price: 300 })]
+    } as never)
+    await invoices.addPayment({
+      invoiceId: walkIn.id, amount: 100, method: 'cash', paidOn: '2026-05-01'
+    })
+
+    const orphaned = await invoices.listInvoiceHistory(walkIn.id)
+    ok(orphaned.every((e) => e.customer_id === null), 'no customer on them yet')
+
+    const cur = await invoices.getInvoice(walkIn.id)
+    await invoices.saveInvoice({ ...cur!, id: walkIn.id, customer_id: cid } as never)
+
+    const mine = await invoices.listCustomerHistory(cid)
+    ok(mine.some((e) => e.invoice_id === walkIn.id && e.kind === 'created'),
+      'the original creation now shows under the customer')
+    ok(mine.some((e) => e.invoice_id === walkIn.id && e.kind === 'payment'),
+      'and so does the payment taken before they were assigned')
+    await invoices.deleteInvoice(walkIn.id)
   })
 
   await check('deleting an invoice keeps its history, with the number intact', async () => {

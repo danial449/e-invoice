@@ -62,6 +62,104 @@ async function renumberEvents(client: PoolClient, invoiceId: number, invoiceNo: 
   }
 }
 
+/** The parts of an invoice worth reporting a change to. */
+interface InvoiceSnapshot {
+  customerId: number | null
+  customerName: string
+  invoiceDate: string
+  dueDate: string
+  poNumber: string
+  status: InvoiceStatus
+  total: number
+  discountType: string
+  discountValue: number
+  taxEnabled: boolean
+  shipping: number
+  roundOff: number
+  notes: string
+  terms: string
+  templateId: number | null
+  items: { name: string; qty: number; price: number; uom: string }[]
+}
+
+function money(n: unknown): string {
+  return round2(num(n)).toFixed(2)
+}
+
+function itemKey(i: { name: string; qty: number; price: number; uom: string }): string {
+  return `${i.name}|${i.uom}|${round3(i.qty)}|${round2(i.price)}`
+}
+
+/**
+ * Plain-language description of what moved between two versions of an invoice.
+ * Reporting only the total and the line count made a change of customer, date,
+ * discount or wording look like nothing had happened at all.
+ */
+function describeChanges(a: InvoiceSnapshot, b: InvoiceSnapshot): string[] {
+  const out: string[] = []
+
+  if (a.customerName !== b.customerName) {
+    out.push(`customer ${a.customerName || 'none'} to ${b.customerName || 'none'}`)
+  }
+  if (a.invoiceDate !== b.invoiceDate) out.push(`date ${a.invoiceDate} to ${b.invoiceDate}`)
+  if (a.dueDate !== b.dueDate) {
+    out.push(b.dueDate ? `due date ${a.dueDate || 'none'} to ${b.dueDate}` : 'due date cleared')
+  }
+  if (a.poNumber !== b.poNumber) out.push(`PO ${a.poNumber || 'none'} to ${b.poNumber || 'none'}`)
+  if (a.status !== b.status) out.push(`${a.status} to ${b.status}`)
+
+  // ── Lines ──
+  const beforeKeys = a.items.map(itemKey)
+  const afterKeys = b.items.map(itemKey)
+  if (a.items.length !== b.items.length) {
+    out.push(`${a.items.length} to ${b.items.length} lines`)
+  } else if (beforeKeys.join('~') !== afterKeys.join('~')) {
+    const changed = afterKeys.filter((k, i) => k !== beforeKeys[i]).length
+    out.push(`${changed} line${changed === 1 ? '' : 's'} changed`)
+  }
+
+  if (round2(a.discountValue) !== round2(b.discountValue) || a.discountType !== b.discountType) {
+    const fmt = (t: string, v: number): string => (t === 'percent' ? `${round2(v)}%` : money(v))
+    out.push(`discount ${fmt(a.discountType, a.discountValue)} to ${fmt(b.discountType, b.discountValue)}`)
+  }
+  if (a.taxEnabled !== b.taxEnabled) out.push(b.taxEnabled ? 'sales tax turned on' : 'sales tax turned off')
+  if (round2(a.shipping) !== round2(b.shipping)) {
+    out.push(`delivery ${money(a.shipping)} to ${money(b.shipping)}`)
+  }
+  if (round2(a.roundOff) !== round2(b.roundOff)) {
+    out.push(`round off ${money(a.roundOff)} to ${money(b.roundOff)}`)
+  }
+  if (round2(a.total) !== round2(b.total)) out.push(`total ${money(a.total)} to ${money(b.total)}`)
+
+  if ((a.notes ?? '') !== (b.notes ?? '')) out.push('notes edited')
+  if ((a.terms ?? '') !== (b.terms ?? '')) out.push('terms edited')
+  if (a.templateId !== b.templateId) out.push('template changed')
+
+  return out
+}
+
+/**
+ * Entries written before the invoice had a customer, or under a previous one,
+ * belong with the customer it has now - otherwise the customer's history is
+ * missing its own beginning.
+ */
+async function reassignEventCustomer(
+  client: PoolClient,
+  invoiceId: number,
+  customerId: number | null,
+  customerName: string
+): Promise<void> {
+  try {
+    await client.query(
+      `UPDATE invoice_events SET customer_id = $1, customer_name = $2
+       WHERE invoice_id = $3 AND (customer_id IS DISTINCT FROM $1 OR customer_name <> $2)`,
+      [customerId, customerName, invoiceId]
+    )
+  } catch (err) {
+    console.error('[history] could not reassign events to the customer:', err)
+  }
+}
+
 export async function listInvoiceHistory(invoiceId: number, limit = 200): Promise<InvoiceEvent[]> {
   return query<InvoiceEvent>(
     `SELECT * FROM invoice_events WHERE invoice_id = $1
@@ -293,19 +391,11 @@ export async function saveInvoice(input: InvoiceInput): Promise<InvoiceWithItems
     let invoiceNo: string
     let prevStatus: InvoiceStatus = 'draft'
     let prevStockApplied = false
-    let before: { total: number; itemCount: number; status: InvoiceStatus } | null = null
+    let before: InvoiceSnapshot | null = null
 
     if (input.id) {
-      const prev = await client.query<{
-        status: InvoiceStatus
-        stock_applied: boolean
-        invoice_no: string
-        total: number
-        item_count: number
-      }>(
-        `SELECT status, stock_applied, invoice_no, total,
-                (SELECT count(*) FROM invoice_items WHERE invoice_id = i.id) AS item_count
-         FROM invoices i WHERE id = $1 FOR UPDATE`,
+      const prev = await client.query<Invoice>(
+        'SELECT * FROM invoices WHERE id = $1 FOR UPDATE',
         [input.id]
       )
       if (prev.rowCount === 0) throw new Error('Invoice not found.')
@@ -313,10 +403,30 @@ export async function saveInvoice(input: InvoiceInput): Promise<InvoiceWithItems
       prevStockApplied = prev.rows[0].stock_applied
       invoiceId = input.id
       invoiceNo = prev.rows[0].invoice_no
+      const prevItems = await client.query<InvoiceItem>(
+        'SELECT * FROM invoice_items WHERE invoice_id = $1 ORDER BY sort_order, id',
+        [input.id]
+      )
+      const r = prev.rows[0]
       before = {
-        total: num(prev.rows[0].total),
-        itemCount: num(prev.rows[0].item_count),
-        status: prev.rows[0].status
+        customerId: r.customer_id ?? null,
+        customerName: snapshotName(r.customer_snapshot),
+        invoiceDate: String(r.invoice_date ?? '').slice(0, 10),
+        dueDate: String(r.due_date ?? '').slice(0, 10),
+        poNumber: r.po_number ?? '',
+        status: r.status,
+        total: num(r.total),
+        discountType: r.discount_type ?? 'amount',
+        discountValue: num(r.discount_value),
+        taxEnabled: !!r.tax_enabled,
+        shipping: num(r.shipping),
+        roundOff: num(r.round_off),
+        notes: r.notes ?? '',
+        terms: r.terms ?? '',
+        templateId: r.template_id ?? null,
+        items: prevItems.rows.map((i) => ({
+          name: i.name, qty: num(i.qty), price: num(i.unit_price), uom: i.uom
+        }))
       }
 
       // Reverse any previously applied stock before rewriting the lines.
@@ -410,26 +520,38 @@ export async function saveInvoice(input: InvoiceInput): Promise<InvoiceWithItems
         detail: { status, total: totals.total, items: items.length }
       })
     } else {
-      // Describe what actually moved, so the trail is worth reading.
-      const changes: string[] = []
-      if (round2(before.total) !== round2(totals.total)) {
-        changes.push(`total ${before.total.toFixed(2)} to ${totals.total.toFixed(2)}`)
+      const after: InvoiceSnapshot = {
+        customerId: input.customer_id ?? null,
+        customerName: custName,
+        invoiceDate: String(input.invoice_date ?? '').slice(0, 10),
+        dueDate: String(input.due_date ?? '').slice(0, 10),
+        poNumber: input.po_number ?? '',
+        status,
+        total: totals.total,
+        discountType: input.discount_type ?? 'amount',
+        discountValue: num(input.discount_value),
+        taxEnabled: !!input.tax_enabled,
+        shipping: totals.shipping,
+        roundOff: totals.roundOff,
+        notes: input.notes ?? '',
+        terms: input.terms ?? '',
+        templateId: input.template_id ?? null,
+        items: items.map((i) => ({
+          name: i.name, qty: num(i.qty), price: num(i.unit_price), uom: i.uom
+        }))
       }
-      if (before.itemCount !== items.length) {
-        changes.push(`${before.itemCount} to ${items.length} lines`)
-      }
-      if (before.status !== status) changes.push(`${before.status} to ${status}`)
+      const changes = describeChanges(before, after)
 
       await recordEvent(client, {
         ...evBase,
         kind: before.status !== status ? 'status' : 'updated',
-        summary: changes.length ? `Edited: ${changes.join(', ')}` : 'Edited with no change to the figures',
-        detail: {
-          from: { total: before.total, items: before.itemCount, status: before.status },
-          to: { total: totals.total, items: items.length, status }
-        }
+        summary: changes.length ? `Edited: ${changes.join(', ')}` : 'Saved with no changes',
+        detail: { changes, from: { status: before.status, total: before.total }, to: { status, total: totals.total } }
       })
     }
+
+    // Keep the whole trail with whoever the invoice now belongs to.
+    await reassignEventCustomer(client, invoiceId, input.customer_id ?? null, custName)
 
     return { ...inv.rows[0], items: its.rows }
   })

@@ -3,6 +3,36 @@
 All notable changes to PackagingBox Invoice. Versions follow
 [semantic versioning](https://semver.org): `MAJOR.MINOR.PATCH`.
 
+## [1.4.0] - 2026-11-24
+
+### Added
+
+- **Draw your signature.** Settings - Company now has a **Draw signature**
+  button opening a pad you can sign on with a mouse, trackpad, pen or finger.
+  Strokes are smoothed, and the line thickens when you press harder or move
+  slowly and tapers when you move fast, so it reads as handwriting rather than
+  a constant-width scribble. Four ink colours, an adjustable nib, undo by
+  stroke, clear, and an optional guide line to sign along. Only the ink is
+  exported - the background stays transparent and the image is trimmed to what
+  you drew, so it sits neatly above the signature line on the invoice. Uploading
+  a scan still works as before.
+
+### Fixed
+
+- **Edits in the invoice history said nothing useful.** Every edit was reported
+  as *"Edited with no change to the figures"* unless the total, line count or
+  status happened to change - so changing the customer, dates, PO number,
+  discount, delivery, round-off, tax, notes, terms or a line's price looked like
+  nothing had happened, and the history appeared to contain only payments. An
+  edit is now described properly, for example *"Edited: customer none to Lahore
+  Sweets & Bakers, PO none to PO-9981, 1 line changed, total 1,000.00 to
+  1,250.00"*. A genuine no-op now says *"Saved with no changes"*.
+- **History recorded before a customer was assigned went missing.** Entries
+  written while an invoice was a walk-in kept no customer, so they never
+  appeared in that customer's history even after the invoice was assigned to
+  them. They now follow the invoice to its customer, and existing rows are
+  backfilled on upgrade.
+
 ## [1.3.1] - 2026-11-24
 
 ### Fixed

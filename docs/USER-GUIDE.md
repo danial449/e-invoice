@@ -11,6 +11,7 @@ place, see [INSTALL.md](INSTALL.md).
 - [Payments](#payments)
 - [Invoice history](#invoice-history)
 - [Stamps](#stamps)
+- [Your signature](#your-signature)
 - [Printing and PDFs](#printing-and-pdfs)
 - [Invoice templates](#invoice-templates)
 - [Reports](#reports)
@@ -261,7 +262,9 @@ scroll to **History** to see it: created, edited, issued, cancelled, each
 payment taken or removed, and duplications - newest first, with both how long
 ago and the exact date and time.
 
-An edit says what actually moved, not just that something did:
+An edit says what actually moved - the customer, dates, PO number, a line's
+price, the discount, delivery, round-off, tax, the notes or the terms - not just
+that something did:
 
 > **Edited** - Edited: total 112,000.00 to 118,600.00, 2 to 3 lines
 >
@@ -280,6 +283,8 @@ Two details worth knowing:
   always a record that the invoice existed and what happened to it.
 - Entries recorded while an invoice was still a draft are **renumbered** when it
   is issued, so the whole trail carries the real invoice number.
+- An invoice raised for a walk-in and later assigned to a customer takes its
+  whole history with it, so the customer's trail starts where the invoice did.
 
 ## Stamps
 
@@ -309,6 +314,23 @@ the totals so it does not cover the signature line.
 
 Drafts are not stamped by the automatic setting, since they are not usually
 sent out. An explicitly chosen stamp still prints on them.
+
+## Your signature
+
+**Settings - Company - Signature.** Two ways to set it:
+
+- **Draw signature** opens a pad you can sign on with a mouse, trackpad, pen or
+  finger. Press harder or move slowly for a thicker line; move quickly and it
+  tapers. Pick one of four ink colours and a nib size, undo a stroke at a time,
+  or clear and start again. The dashed guide line is there to sign along and is
+  never part of the saved image.
+- **Upload image...** takes a scan or photo of a signature you already have.
+
+Either way the signature appears above the signature line on every invoice. A
+drawn signature is saved with a transparent background and trimmed to the ink,
+so it sits on the page without a white box around it.
+
+Remember to press **Save** afterwards - drawing alone does not save the setting.
 
 ## Printing and PDFs
 

@@ -202,6 +202,16 @@ ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS terms_link_text TEXT DEFAU
 -- invoice, never counted as low or out of stock.
 ALTER TABLE products ADD COLUMN IF NOT EXISTS track_stock BOOLEAN NOT NULL DEFAULT TRUE;
 
+-- History entries written before an invoice had a customer kept customer_id
+-- NULL, so they never appeared in that customer's history. Attach them to
+-- whoever the invoice belongs to now.
+UPDATE invoice_events e
+   SET customer_id = i.customer_id
+  FROM invoices i
+ WHERE e.invoice_id = i.id
+   AND e.customer_id IS NULL
+   AND i.customer_id IS NOT NULL;
+
 INSERT INTO company_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
-INSERT INTO app_meta (key, value) VALUES ('schema_version','4') ON CONFLICT (key) DO UPDATE SET value = '4';
+INSERT INTO app_meta (key, value) VALUES ('schema_version','5') ON CONFLICT (key) DO UPDATE SET value = '5';
 `
