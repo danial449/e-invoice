@@ -17,6 +17,7 @@ import * as templates from '../src/main/services/templates'
 import * as settings from '../src/main/services/settings'
 import * as reports from '../src/main/services/reports'
 import * as csv from '../src/main/services/csv'
+import * as brandsSvc from '../src/main/services/brands'
 import { renderInvoiceHtml } from '../src/shared/renderInvoice'
 import {
   amountInWords, computeTotals, formatMoney, formatQty, lineNet, linePieces,
@@ -105,7 +106,7 @@ async function main(): Promise<void> {
     const t = await query<{ table_name: string }>(
       "select table_name from information_schema.tables where table_schema='public'"
     )
-    eq(t.length, 11, 'table count')
+    eq(t.length, 12, 'table count')
   })
   await check('54 categories seeded', async () => {
     const r = await queryOne<{ n: number }>('select count(*)::int n from categories')
@@ -1558,6 +1559,191 @@ async function main(): Promise<void> {
     const r = await invoices.listRecentHistory(50)
     ok(r.length > 0, 'entries returned')
     ok(r.length <= 50, 'limit respected')
+  })
+
+  // ----------- 16. Brands -----------
+  g('Brands')
+
+  let brandA = 0
+  let brandB = 0
+
+  await check('an existing installation becomes one default brand', async () => {
+    const list = await brandsSvc.listBrands()
+    ok(list.length >= 1, 'a brand exists')
+    const def = await brandsSvc.getDefaultBrand()
+    ok(!!def, 'and one of them is the default')
+    brandA = def!.id
+    ok(def!.name.length > 0, 'carrying the company name across')
+  })
+
+  await check('a second brand can be added with its own letterhead', async () => {
+    const b = await brandsSvc.createBrand({
+      name: 'Lahore Pouch Co', legal_name: 'Lahore Pouch Company (Pvt) Ltd',
+      address: '42 Industrial Estate', city: 'Lahore', phone: '+92 300 1112223',
+      email: 'sales@lahorepouch.pk', website: 'lahorepouch.pk', ntn: '9988776-5',
+      bank_details: 'Meezan Bank 0123456789',
+      terms_url: 'https://lahorepouch.pk/terms', terms_link_text: 'Our Terms',
+      invoice_prefix: 'LPC-', invoice_pad: 4, invoice_next_number: 1
+    })
+    brandB = b.id
+    eq(b.name, 'Lahore Pouch Co')
+    eq(b.is_default, false, 'the existing default is left alone')
+  })
+
+  await check('a brand is never left without a default', async () => {
+    const def = await brandsSvc.getDefaultBrand()
+    eq(def!.id, brandA, 'still the original')
+  })
+
+  await check('each brand numbers its own invoices', async () => {
+    const mk = async (brandId: number): Promise<string> => {
+      const inv = await invoices.saveInvoice({
+        invoice_date: '2026-07-01', due_date: null, customer_id: null, brand_id: brandId,
+        template_id: null, po_number: '', discount_type: 'amount', discount_value: 0,
+        tax_enabled: false, shipping: 0, round_off: 0, paid_amount: 0, status: 'issued',
+        notes: '', terms: '', items: [item({ name: 'Brand line', qty: 1, unit_price: 100 })]
+      } as never)
+      return inv.invoice_no
+    }
+    const b1 = await mk(brandB)
+    const b2 = await mk(brandB)
+    ok(b1.startsWith('LPC-'), `expected the brand prefix, got ${b1}`)
+    ok(b2.startsWith('LPC-'), `expected the brand prefix, got ${b2}`)
+    ok(b1 !== b2, 'and the sequence advances')
+
+    const a1 = await mk(brandA)
+    ok(!a1.startsWith('LPC-'), `the other brand keeps its own prefix, got ${a1}`)
+  })
+
+  await check("an invoice prints the brand's details, not the company's", async () => {
+    const inv = await invoices.saveInvoice({
+      invoice_date: '2026-07-02', due_date: null, customer_id: null, brand_id: brandB,
+      template_id: null, po_number: '', discount_type: 'amount', discount_value: 0,
+      tax_enabled: false, shipping: 0, round_off: 0, paid_amount: 0, status: 'issued',
+      notes: '', terms: 'Pay in 7 days.',
+      items: [item({ name: 'Pouches', qty: 10, unit_price: 50 })]
+    } as never)
+
+    const appSettings = await settings.getCompanySettings()
+    const company = await brandsSvc.companyForInvoice(inv.brand_id, inv.brand_snapshot, appSettings)
+    eq(company.name, 'Lahore Pouch Co')
+    eq(company.email, 'sales@lahorepouch.pk')
+    eq(company.ntn, '9988776-5')
+
+    const cfg = JSON.parse(JSON.stringify(TEMPLATE_PRESETS[0].config))
+    const html = renderInvoiceHtml({ invoice: inv, company, config: cfg, mode: 'print' })
+    ok(html.includes('Lahore Pouch Co'), 'the brand name is on the invoice')
+    ok(html.includes('sales@lahorepouch.pk'), 'and its email')
+    ok(html.includes('lahorepouch.pk/terms'), 'and its own terms link')
+    ok(!html.includes('info@packagingbox.pk'), 'not the other brand details')
+  })
+
+  await check('the brand is snapshotted, so renaming it never rewrites old invoices', async () => {
+    const inv = await invoices.saveInvoice({
+      invoice_date: '2026-07-03', due_date: null, customer_id: null, brand_id: brandB,
+      template_id: null, po_number: '', discount_type: 'amount', discount_value: 0,
+      tax_enabled: false, shipping: 0, round_off: 0, paid_amount: 0, status: 'issued',
+      notes: '', terms: '', items: [item({ name: 'Snapshot test', qty: 1, unit_price: 10 })]
+    } as never)
+
+    await brandsSvc.updateBrand(brandB, {
+      name: 'RENAMED LATER', invoice_prefix: 'LPC-', invoice_pad: 4, invoice_next_number: 99
+    })
+
+    const again = await invoices.getInvoice(inv.id)
+    const appSettings = await settings.getCompanySettings()
+    const company = await brandsSvc.companyForInvoice(
+      again!.brand_id, again!.brand_snapshot, appSettings
+    )
+    eq(company.name, 'Lahore Pouch Co', 'the invoice keeps the name it was issued under')
+
+    // put it back so later checks read sensibly
+    await brandsSvc.updateBrand(brandB, {
+      name: 'Lahore Pouch Co', invoice_prefix: 'LPC-', invoice_pad: 4, invoice_next_number: 99
+    })
+  })
+
+  await check('an invoice with no brand falls back to the default', async () => {
+    const inv = await invoices.saveInvoice({
+      invoice_date: '2026-07-04', due_date: null, customer_id: null, brand_id: null,
+      template_id: null, po_number: '', discount_type: 'amount', discount_value: 0,
+      tax_enabled: false, shipping: 0, round_off: 0, paid_amount: 0, status: 'issued',
+      notes: '', terms: '', items: [item({ name: 'No brand', qty: 1, unit_price: 10 })]
+    } as never)
+    eq(inv.brand_id, brandA, 'assigned to the default brand')
+  })
+
+  await check('setting a different default moves the star', async () => {
+    await brandsSvc.setDefaultBrand(brandB)
+    eq((await brandsSvc.getDefaultBrand())!.id, brandB)
+    await brandsSvc.setDefaultBrand(brandA)
+    eq((await brandsSvc.getDefaultBrand())!.id, brandA)
+  })
+
+  await check('duplicating a brand starts its numbering fresh', async () => {
+    const copy = await brandsSvc.duplicateBrand(brandB, 'Lahore Pouch Co (export)')
+    eq(copy.invoice_next_number, 1, 'a copy must not reuse the original counter')
+    eq(copy.is_default, false)
+    eq(copy.email, 'sales@lahorepouch.pk', 'the rest is carried over')
+    await brandsSvc.deleteBrand(copy.id)
+  })
+
+  await check('a brand that has issued invoices is deactivated, not deleted', async () => {
+    const r = await brandsSvc.deleteBrand(brandB)
+    eq(r.deleted, false, 'not hard deleted')
+    eq(r.deactivated, true)
+    const still = await brandsSvc.getBrand(brandB)
+    ok(!!still, 'the row survives so its invoices still resolve')
+    eq(still!.is_active, false)
+    await brandsSvc.updateBrand(brandB, {
+      name: 'Lahore Pouch Co', is_active: true, invoice_prefix: 'LPC-', invoice_pad: 4,
+      invoice_next_number: 200
+    })
+  })
+
+  await check('the last remaining brand cannot be removed', async () => {
+    const list = await brandsSvc.listBrands()
+    // Take everything down to one, then try to remove it.
+    for (const b of list) {
+      if (b.id === brandA) continue
+      try {
+        await brandsSvc.deleteBrand(b.id)
+      } catch {
+        /* already gone */
+      }
+    }
+    const left = (await brandsSvc.listBrands()).filter((b) => b.is_active)
+    if (left.length === 1) {
+      try {
+        await brandsSvc.deleteBrand(left[0].id)
+        throw new Error('the only brand was removed')
+      } catch (e) {
+        ok(!/was removed/.test(String(e)), 'refused, as it should be')
+      }
+    } else {
+      ok(true, 'more than one brand remains; nothing to prove here')
+    }
+  })
+
+  await check('a partial update changes only what was sent', async () => {
+    const before = await brandsSvc.getBrand(brandB)
+    ok(!!before && before.email.length > 0, 'the brand has an email to protect')
+    await brandsSvc.updateBrand(brandB, { invoice_next_number: 500 })
+    const after = await brandsSvc.getBrand(brandB)
+    eq(after!.invoice_next_number, 500, 'the field sent was changed')
+    eq(after!.email, before!.email, 'the email survived')
+    eq(after!.address, before!.address, 'and the address')
+    eq(after!.ntn, before!.ntn, 'and the NTN')
+    eq(after!.name, before!.name, 'and the name')
+  })
+
+  await check('a brand with no name is refused', async () => {
+    try {
+      await brandsSvc.createBrand({ name: '   ' })
+      throw new Error('accepted')
+    } catch (e) {
+      ok(!/accepted/.test(String(e)), 'should refuse')
+    }
   })
 
   // ═══════════ teardown ═══════════

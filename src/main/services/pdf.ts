@@ -6,6 +6,7 @@ import { pathToFileURL } from 'node:url'
 import { renderInvoiceHtml, pageDimensions, escapeHtml } from '../../shared/renderInvoice'
 import { getInvoice, listPayments } from './invoices'
 import { getCompanySettings } from './settings'
+import { companyForInvoice } from './brands'
 import { getTemplate, getDefaultTemplate } from './templates'
 import type { CompanySettings, InvoiceWithItems, Payment, TemplateConfig } from '../../shared/types'
 
@@ -112,7 +113,8 @@ interface Resolved {
 async function resolve(invoiceId: number, templateId?: number | null): Promise<Resolved> {
   const invoice = await getInvoice(invoiceId)
   if (!invoice) throw new Error('Invoice not found.')
-  const company = await getCompanySettings()
+  const settings = await getCompanySettings()
+  const company = await companyForInvoice(invoice.brand_id, invoice.brand_snapshot, settings)
   const template =
     (templateId ? await getTemplate(templateId) : null) ??
     (invoice.template_id ? await getTemplate(invoice.template_id) : null) ??

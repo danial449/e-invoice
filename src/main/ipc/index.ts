@@ -14,8 +14,9 @@ import * as reports from '../services/reports'
 import * as csv from '../services/csv'
 import * as pdf from '../services/pdf'
 import * as backup from '../services/backup'
+import * as brands from '../services/brands'
 import { renderInvoiceHtml } from '../../shared/renderInvoice'
-import type { ApiResult, DbConfig, InvoiceWithItems, TemplateConfig } from '../../shared/types'
+import type { ApiResult, BrandInput, DbConfig, InvoiceWithItems, TemplateConfig } from '../../shared/types'
 
 /** Wrap a handler so the renderer always receives {ok,data} or {ok,error}. */
 function handle<A extends unknown[], R>(
@@ -133,6 +134,17 @@ export function registerIpc(): void {
   handle('templates:restorePresets', () => templates.restorePresets())
 
   // ─────────────── Settings ───────────────
+  // ─────────────── Brands ───────────────
+  handle('brands:list', (activeOnly?: boolean) => brands.listBrands(activeOnly))
+  handle('brands:get', (id: number) => brands.getBrand(id))
+  handle('brands:default', () => brands.getDefaultBrand())
+  handle('brands:create', (input: Partial<BrandInput>) => brands.createBrand(input))
+  handle('brands:update', (id: number, input: Partial<BrandInput>) => brands.updateBrand(id, input))
+  handle('brands:duplicate', (id: number, name?: string) => brands.duplicateBrand(id, name))
+  handle('brands:setDefault', (id: number) => brands.setDefaultBrand(id))
+  handle('brands:delete', (id: number) => brands.deleteBrand(id))
+  handle('brands:nextNo', (id: number) => brands.peekNextNumber(id))
+
   handle('settings:get', () => settings.getCompanySettings())
   handle('settings:update', (patch: Parameters<typeof settings.updateCompanySettings>[0]) =>
     settings.updateCompanySettings(patch)
@@ -209,7 +221,8 @@ export function registerIpc(): void {
   handle('invoices:html', async (invoiceId: number, templateId?: number | null) => {
     const invoice = await invoices.getInvoice(invoiceId)
     if (!invoice) throw new Error('Invoice not found.')
-    const company = await settings.getCompanySettings()
+    const appSettings = await settings.getCompanySettings()
+    const company = await brands.companyForInvoice(invoice.brand_id, invoice.brand_snapshot, appSettings)
     const template =
       (templateId ? await templates.getTemplate(templateId) : null) ??
       (invoice.template_id ? await templates.getTemplate(invoice.template_id) : null) ??
@@ -220,7 +233,10 @@ export function registerIpc(): void {
 
   /** Preview an unsaved invoice (used by the editor and the designer). */
   handle('invoices:previewHtml', async (invoice: InvoiceWithItems, config: TemplateConfig, scale?: number) => {
-    const company = await settings.getCompanySettings()
+    const appSettings = await settings.getCompanySettings()
+    // Preview under the brand chosen in the editor right now, not the one the
+    // invoice was last saved with, so switching brand updates the letterhead.
+    const company = await brands.companyForInvoice(invoice.brand_id, undefined, appSettings)
     // A saved invoice may already have payments; an unsaved draft cannot.
     const payments = invoice.id ? await invoices.listPayments(invoice.id) : []
     return renderInvoiceHtml({ invoice, company, config, payments, mode: 'screen', scale })

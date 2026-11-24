@@ -23,6 +23,9 @@ const CHANNELS = [
   'templates:list', 'templates:get', 'templates:default', 'templates:create', 'templates:update',
   'templates:duplicate', 'templates:setDefault', 'templates:delete', 'templates:restorePresets',
 
+  'brands:list', 'brands:get', 'brands:default', 'brands:create', 'brands:update',
+  'brands:duplicate', 'brands:setDefault', 'brands:delete', 'brands:nextNo',
+
   'settings:get', 'settings:update',
 
   'reports:dashboard', 'reports:sales',

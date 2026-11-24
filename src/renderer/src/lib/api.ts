@@ -1,5 +1,6 @@
 import type {
-  ApiResult, Category, CompanySettings, Customer, CustomerInput, DashboardStats, DbConfig,
+  ApiResult, Brand, BrandInput, Category, CompanySettings, Customer, CustomerInput,
+  DashboardStats, DbConfig,
   ImportOptions, ImportResult, Invoice, InvoiceEvent, InvoiceStatus, InvoiceTemplate, InvoiceWithItems,
   Payment, Product, ProductInput, StockMovement, TemplateConfig
 } from '@shared/types'
@@ -174,6 +175,17 @@ export const api = {
   setDefaultTemplate: (id: number) => call<void>('templates:setDefault', id),
   deleteTemplate: (id: number) => call<void>('templates:delete', id),
   restorePresets: () => call<number>('templates:restorePresets'),
+
+  // ── Brands ──
+  listBrands: (activeOnly = false) => call<Brand[]>('brands:list', activeOnly),
+  getBrand: (id: number) => call<Brand | null>('brands:get', id),
+  defaultBrand: () => call<Brand | null>('brands:default'),
+  createBrand: (input: Partial<BrandInput>) => call<Brand>('brands:create', input),
+  updateBrand: (id: number, input: Partial<BrandInput>) => call<Brand>('brands:update', id, input),
+  duplicateBrand: (id: number, name?: string) => call<Brand>('brands:duplicate', id, name),
+  setDefaultBrand: (id: number) => call<void>('brands:setDefault', id),
+  deleteBrand: (id: number) => call<{ deleted: boolean; deactivated: boolean }>('brands:delete', id),
+  brandNextNo: (id: number) => call<string>('brands:nextNo', id),
 
   // ── Settings ──
   getSettings: () => call<CompanySettings>('settings:get'),

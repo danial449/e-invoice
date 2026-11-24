@@ -3,6 +3,7 @@ import { api } from '../lib/api'
 import type { BackupFile, BackupSettings, BackupToolStatus, DbStatus } from '../lib/api'
 import { ConfirmDialog, NumberField, Spinner, Toggle, useToast } from '../components/ui'
 import SignaturePad from '../components/SignaturePad'
+import Brands from './Brands'
 import { formatInvoiceNoPreview } from '../lib/format'
 import type { CompanySettings, DbConfig } from '@shared/types'
 import type { NavProps } from '../App'
@@ -11,7 +12,7 @@ interface Props extends NavProps {
   onDbChange: () => void
 }
 
-type Tab = 'company' | 'invoice' | 'database' | 'about'
+type Tab = 'brands' | 'company' | 'invoice' | 'database' | 'about'
 
 export default function SettingsPage({ onDbChange }: Props): React.JSX.Element {
   const toast = useToast()
@@ -66,6 +67,7 @@ export default function SettingsPage({ onDbChange }: Props): React.JSX.Element {
   if (loading) return <Spinner label="Loading settings…" />
 
   const TABS: { id: Tab; label: string }[] = [
+    { id: 'brands', label: 'Brands' },
     { id: 'company', label: 'Company' },
     { id: 'invoice', label: 'Invoice defaults' },
     { id: 'database', label: 'Database' },
@@ -437,6 +439,9 @@ export default function SettingsPage({ onDbChange }: Props): React.JSX.Element {
             </div>
           </>
         ) : null}
+
+        {/* ─────────── Brands ─────────── */}
+        {tab === 'brands' ? <Brands /> : null}
 
         {/* ─────────── Database ─────────── */}
         {tab === 'database' ? (

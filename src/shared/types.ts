@@ -68,6 +68,45 @@ export interface Customer {
 
 export type CustomerInput = Omit<Customer, 'id' | 'created_at'>
 
+// ───────────────────────────── Brands ─────────────────────────────
+
+/**
+ * One business you invoice as. Everything identifying the seller on an invoice
+ * comes from here, so several brands can share one catalogue and one customer
+ * list while each keeps its own letterhead and its own number sequence.
+ */
+export interface Brand {
+  id: number
+  name: string
+  legal_name: string
+  address: string
+  city: string
+  country: string
+  phone: string
+  phone_alt: string
+  email: string
+  website: string
+  ntn: string
+  strn: string
+  logo_data_url: string
+  signature_data_url: string
+  bank_details: string
+  default_terms: string
+  default_notes: string
+  terms_url: string
+  terms_link_text: string
+  invoice_prefix: string
+  invoice_next_number: number
+  invoice_pad: number
+  is_default: boolean
+  is_active: boolean
+  sort_order: number
+  created_at?: string
+  updated_at?: string
+}
+
+export type BrandInput = Omit<Brand, 'id' | 'created_at' | 'updated_at'>
+
 // ───────────────────────────── Company ─────────────────────────────
 
 export interface CompanySettings {
@@ -128,6 +167,10 @@ export interface Invoice {
   invoice_date: string
   due_date: string | null
   customer_id: number | null
+  /** The brand this invoice was issued under. */
+  brand_id?: number | null
+  /** That brand's details as they stood when the invoice was saved. */
+  brand_snapshot?: Record<string, unknown>
   customer_snapshot: Partial<Customer>
   template_id: number | null
   po_number: string

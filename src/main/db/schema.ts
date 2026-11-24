@@ -171,6 +171,42 @@ CREATE TABLE IF NOT EXISTS payments (
 );
 CREATE INDEX IF NOT EXISTS idx_payments_invoice ON payments(invoice_id);
 
+-- =========================== Brands ===========================
+-- One row per business you invoice as. Everything that identifies the seller
+-- on an invoice lives here, including its own number sequence, so two brands
+-- never share a counter. company_settings keeps the app-wide bits (currency,
+-- tax default) and acts as the fallback when no brand is chosen.
+CREATE TABLE IF NOT EXISTS brands (
+  id                  SERIAL PRIMARY KEY,
+  name                TEXT NOT NULL,
+  legal_name          TEXT DEFAULT '',
+  address             TEXT DEFAULT '',
+  city                TEXT DEFAULT '',
+  country             TEXT DEFAULT 'Pakistan',
+  phone               TEXT DEFAULT '',
+  phone_alt           TEXT DEFAULT '',
+  email               TEXT DEFAULT '',
+  website             TEXT DEFAULT '',
+  ntn                 TEXT DEFAULT '',
+  strn                TEXT DEFAULT '',
+  logo_data_url       TEXT DEFAULT '',
+  signature_data_url  TEXT DEFAULT '',
+  bank_details        TEXT DEFAULT '',
+  default_terms       TEXT DEFAULT '',
+  default_notes       TEXT DEFAULT '',
+  terms_url           TEXT DEFAULT '',
+  terms_link_text     TEXT DEFAULT '',
+  invoice_prefix      TEXT NOT NULL DEFAULT 'INV-',
+  invoice_next_number INT  NOT NULL DEFAULT 1,
+  invoice_pad         INT  NOT NULL DEFAULT 4,
+  is_default          BOOLEAN NOT NULL DEFAULT FALSE,
+  is_active           BOOLEAN NOT NULL DEFAULT TRUE,
+  sort_order          INT NOT NULL DEFAULT 0,
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_brands_active ON brands(is_active, sort_order);
+
 -- =========================== History ===========================
 -- An append-only trail of what happened to each invoice. The invoice and
 -- customer references are SET NULL rather than CASCADE so the record of a
@@ -202,6 +238,33 @@ ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS terms_link_text TEXT DEFAU
 -- invoice, never counted as low or out of stock.
 ALTER TABLE products ADD COLUMN IF NOT EXISTS track_stock BOOLEAN NOT NULL DEFAULT TRUE;
 
+-- Which brand an invoice was issued under, plus a copy of that brand's details
+-- as they stood at the time, so editing a brand never rewrites past invoices.
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS brand_id INT REFERENCES brands(id) ON DELETE SET NULL;
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS brand_snapshot JSONB NOT NULL DEFAULT '{}'::jsonb;
+CREATE INDEX IF NOT EXISTS idx_invoices_brand ON invoices(brand_id);
+
+-- An existing installation becomes a single brand built from its company
+-- settings, carrying the invoice counter across so numbering continues
+-- unbroken.
+INSERT INTO brands (
+  name, legal_name, address, city, country, phone, phone_alt, email, website,
+  ntn, strn, logo_data_url, signature_data_url, bank_details, default_terms,
+  default_notes, terms_url, terms_link_text, invoice_prefix, invoice_next_number,
+  invoice_pad, is_default, sort_order
+)
+SELECT
+  coalesce(nullif(name,''), 'My Business'), legal_name, address, city, country, phone, phone_alt,
+  email, website, ntn, strn, logo_data_url, signature_data_url, bank_details, default_terms,
+  default_notes, coalesce(terms_url,''), coalesce(terms_link_text,''), invoice_prefix,
+  invoice_next_number, invoice_pad, TRUE, 0
+FROM company_settings
+WHERE id = 1 AND NOT EXISTS (SELECT 1 FROM brands);
+
+-- Invoices raised before brands existed belong to the default one.
+UPDATE invoices SET brand_id = (SELECT id FROM brands WHERE is_default ORDER BY id LIMIT 1)
+WHERE brand_id IS NULL;
+
 -- History entries written before an invoice had a customer kept customer_id
 -- NULL, so they never appeared in that customer's history. Attach them to
 -- whoever the invoice belongs to now.
@@ -213,5 +276,5 @@ UPDATE invoice_events e
    AND i.customer_id IS NOT NULL;
 
 INSERT INTO company_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
-INSERT INTO app_meta (key, value) VALUES ('schema_version','5') ON CONFLICT (key) DO UPDATE SET value = '5';
+INSERT INTO app_meta (key, value) VALUES ('schema_version','6') ON CONFLICT (key) DO UPDATE SET value = '6';
 `

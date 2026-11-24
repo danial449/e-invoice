@@ -2,6 +2,7 @@ import type { PoolClient } from 'pg'
 import { query, queryOne, withTransaction } from '../db/pool'
 import { computeTotals, lineNet, linePieces, derivePaymentStatus, round2, round3, num } from '../../shared/calc'
 import { formatInvoiceNo } from './settings'
+import { getDefaultBrand, nextNumberForBrand } from './brands'
 import type {
   Invoice, InvoiceEvent, InvoiceEventKind, InvoiceInput, InvoiceItem, InvoiceStatus,
   InvoiceWithItems, Payment
@@ -195,7 +196,10 @@ export async function listRecentHistory(limit = 200): Promise<InvoiceEvent[]> {
  * Consume the next invoice number inside the caller's transaction.
  * Locks the settings row so two windows cannot take the same number.
  */
-async function nextInvoiceNo(client: PoolClient): Promise<string> {
+async function nextInvoiceNo(client: PoolClient, brandId?: number | null): Promise<string> {
+  // Each brand keeps its own counter, so two brands never share a number.
+  if (brandId) return nextNumberForBrand(client, brandId)
+
   const { rows } = await client.query<{
     invoice_prefix: string
     invoice_next_number: number
@@ -387,6 +391,19 @@ export async function saveInvoice(input: InvoiceInput): Promise<InvoiceWithItems
       if (c.rows[0]) snapshot = c.rows[0]
     }
 
+    // The same for the brand: which business this was invoiced as, and how its
+    // letterhead read at the time.
+    let brandId = input.brand_id ?? null
+    if (!brandId) {
+      const fallback = await getDefaultBrand()
+      brandId = fallback?.id ?? null
+    }
+    let brandSnapshot: Record<string, unknown> = (input.brand_snapshot as Record<string, unknown>) ?? {}
+    if (brandId) {
+      const b = await client.query('SELECT * FROM brands WHERE id = $1', [brandId])
+      if (b.rows[0]) brandSnapshot = b.rows[0] as Record<string, unknown>
+    }
+
     let invoiceId: number
     let invoiceNo: string
     let prevStatus: InvoiceStatus = 'draft'
@@ -437,14 +454,14 @@ export async function saveInvoice(input: InvoiceInput): Promise<InvoiceWithItems
            invoice_date=$1, due_date=$2, customer_id=$3, customer_snapshot=$4::jsonb, template_id=$5,
            po_number=$6, subtotal=$7, discount_type=$8, discount_value=$9, discount_amount=$10,
            tax_enabled=$11, tax_amount=$12, shipping=$13, round_off=$14, total=$15, paid_amount=$16,
-           status=$17, notes=$18, terms=$19, updated_at=now()
-         WHERE id=$20`,
+           status=$17, notes=$18, terms=$19, brand_id=$20, brand_snapshot=$21::jsonb, updated_at=now()
+         WHERE id=$22`,
         [
           input.invoice_date, input.due_date || null, input.customer_id ?? null, JSON.stringify(snapshot),
           input.template_id ?? null, input.po_number ?? '', totals.subtotal, input.discount_type ?? 'amount',
           num(input.discount_value), totals.discountAmount, !!input.tax_enabled, totals.taxAmount,
           totals.shipping, totals.roundOff, totals.total, totals.paid, status, input.notes ?? '',
-          input.terms ?? '', invoiceId
+          input.terms ?? '', brandId, JSON.stringify(brandSnapshot), invoiceId
         ]
       )
       await client.query('DELETE FROM invoice_items WHERE invoice_id = $1', [invoiceId])
@@ -453,21 +470,21 @@ export async function saveInvoice(input: InvoiceInput): Promise<InvoiceWithItems
       invoiceNo =
         status === 'draft'
           ? `DRAFT-${Date.now().toString(36).toUpperCase()}`
-          : await nextInvoiceNo(client)
+          : await nextInvoiceNo(client, brandId)
 
       const ins = await client.query<{ id: number }>(
         `INSERT INTO invoices
            (invoice_no, invoice_date, due_date, customer_id, customer_snapshot, template_id, po_number,
             subtotal, discount_type, discount_value, discount_amount, tax_enabled, tax_amount,
-            shipping, round_off, total, paid_amount, status, notes, terms)
-         VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+            shipping, round_off, total, paid_amount, status, notes, terms, brand_id, brand_snapshot)
+         VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22::jsonb)
          RETURNING id`,
         [
           invoiceNo, input.invoice_date, input.due_date || null, input.customer_id ?? null,
           JSON.stringify(snapshot), input.template_id ?? null, input.po_number ?? '', totals.subtotal,
           input.discount_type ?? 'amount', num(input.discount_value), totals.discountAmount,
           !!input.tax_enabled, totals.taxAmount, totals.shipping, totals.roundOff, totals.total,
-          totals.paid, status, input.notes ?? '', input.terms ?? ''
+          totals.paid, status, input.notes ?? '', input.terms ?? '', brandId, JSON.stringify(brandSnapshot)
         ]
       )
       invoiceId = ins.rows[0].id
@@ -475,7 +492,7 @@ export async function saveInvoice(input: InvoiceInput): Promise<InvoiceWithItems
 
     // A draft being issued for the first time gets a real number now.
     if (input.id && prevStatus === 'draft' && status !== 'draft' && invoiceNo.startsWith('DRAFT-')) {
-      invoiceNo = await nextInvoiceNo(client)
+      invoiceNo = await nextInvoiceNo(client, brandId)
       await client.query('UPDATE invoices SET invoice_no = $1 WHERE id = $2', [invoiceNo, invoiceId])
       await renumberEvents(client, invoiceId, invoiceNo)
     }
@@ -559,8 +576,13 @@ export async function saveInvoice(input: InvoiceInput): Promise<InvoiceWithItems
 
 export async function setInvoiceStatus(id: number, status: InvoiceStatus): Promise<InvoiceWithItems> {
   await withTransaction(async (client) => {
-    const prev = await client.query<{ status: InvoiceStatus; stock_applied: boolean; invoice_no: string }>(
-      'SELECT status, stock_applied, invoice_no FROM invoices WHERE id = $1 FOR UPDATE',
+    const prev = await client.query<{
+      status: InvoiceStatus
+      stock_applied: boolean
+      invoice_no: string
+      brand_id: number | null
+    }>(
+      'SELECT status, stock_applied, invoice_no, brand_id FROM invoices WHERE id = $1 FOR UPDATE',
       [id]
     )
     if (prev.rowCount === 0) throw new Error('Invoice not found.')
@@ -571,7 +593,7 @@ export async function setInvoiceStatus(id: number, status: InvoiceStatus): Promi
     if (prevStatus === status) return
 
     if (status !== 'draft' && invoiceNo.startsWith('DRAFT-')) {
-      invoiceNo = await nextInvoiceNo(client)
+      invoiceNo = await nextInvoiceNo(client, prev.rows[0].brand_id)
       await client.query('UPDATE invoices SET invoice_no = $1 WHERE id = $2', [invoiceNo, id])
       await renumberEvents(client, id, invoiceNo)
     }
@@ -642,6 +664,7 @@ export async function duplicateInvoice(id: number): Promise<InvoiceWithItems> {
     due_date: null,
     customer_id: src.customer_id,
     customer_snapshot: src.customer_snapshot,
+    brand_id: src.brand_id ?? null,
     template_id: src.template_id,
     po_number: src.po_number,
     discount_type: src.discount_type,
@@ -689,8 +712,14 @@ export async function addPayment(args: {
   if (amount <= 0) throw new Error('Payment amount must be greater than zero.')
 
   await withTransaction(async (client) => {
-    const inv = await client.query<{ total: number; status: InvoiceStatus; invoice_no: string; stock_applied: boolean }>(
-      'SELECT total, status, invoice_no, stock_applied FROM invoices WHERE id = $1 FOR UPDATE',
+    const inv = await client.query<{
+      total: number
+      status: InvoiceStatus
+      invoice_no: string
+      stock_applied: boolean
+      brand_id: number | null
+    }>(
+      'SELECT total, status, invoice_no, stock_applied, brand_id FROM invoices WHERE id = $1 FOR UPDATE',
       [args.invoiceId]
     )
     if (inv.rowCount === 0) throw new Error('Invoice not found.')
@@ -712,7 +741,7 @@ export async function addPayment(args: {
     if (status === 'draft') {
       status = 'issued'
       if (invoiceNo.startsWith('DRAFT-')) {
-        invoiceNo = await nextInvoiceNo(client)
+        invoiceNo = await nextInvoiceNo(client, inv.rows[0].brand_id)
         await client.query('UPDATE invoices SET invoice_no = $1 WHERE id = $2', [invoiceNo, args.invoiceId])
         await renumberEvents(client, args.invoiceId, invoiceNo)
       }

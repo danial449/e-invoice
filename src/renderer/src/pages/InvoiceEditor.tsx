@@ -6,7 +6,7 @@ import InvoicePreview from '../components/InvoicePreview'
 import HistoryTimeline from '../components/HistoryTimeline'
 import { computeTotals, formatMoney, formatQty, lineNet, num, round2 } from '@shared/calc'
 import type {
-  CompanySettings, Customer, Invoice, InvoiceItem, InvoiceStatus, InvoiceTemplate,
+  Brand, CompanySettings, Customer, Invoice, InvoiceItem, InvoiceStatus, InvoiceTemplate,
   InvoiceWithItems, Payment, Product, Uom
 } from '@shared/types'
 import type { NavProps, Route } from '../App'
@@ -54,6 +54,8 @@ export default function InvoiceEditor({ invoiceId, navigate }: EditorProps): Rea
   const [customerId, setCustomerId] = useState<number | null>(null)
   const [poNumber, setPoNumber] = useState('')
   const [templateId, setTemplateId] = useState<number | null>(null)
+  const [brands, setBrands] = useState<Brand[]>([])
+  const [brandId, setBrandId] = useState<number | null>(null)
   const [items, setItems] = useState<InvoiceItem[]>([blankItem()])
   const [discountType, setDiscountType] = useState<'amount' | 'percent'>('amount')
   const [discountValue, setDiscountValue] = useState(0)
@@ -95,14 +97,17 @@ export default function InvoiceEditor({ invoiceId, navigate }: EditorProps): Rea
     void (async () => {
       setLoading(true)
       try {
-        const [co, tpl, cust] = await Promise.all([
+        const [co, tpl, cust, brandList] = await Promise.all([
           api.getSettings(),
           api.listTemplates(),
-          api.listCustomers('', true)
+          api.listCustomers('', true),
+          api.listBrands(true)
         ])
         setCompany(co)
         setTemplates(tpl)
         setCustomers(cust)
+        setBrands(brandList)
+        const defaultBrand = brandList.find((b) => b.is_default) ?? brandList[0] ?? null
 
         if (invoiceId) {
           const inv = await api.getInvoice(invoiceId)
@@ -114,6 +119,9 @@ export default function InvoiceEditor({ invoiceId, navigate }: EditorProps): Rea
           setCustomerId(inv.customer_id)
           setPoNumber(inv.po_number)
           setTemplateId(inv.template_id ?? tpl.find((t) => t.is_default)?.id ?? tpl[0]?.id ?? null)
+          // An invoice from before brands existed, or under one since removed,
+          // falls back so the editor is never left without a brand.
+          setBrandId(inv.brand_id ?? defaultBrand?.id ?? null)
           setItems(inv.items.length ? inv.items : [blankItem()])
           setDiscountType(inv.discount_type)
           setDiscountValue(num(inv.discount_value))
@@ -125,11 +133,15 @@ export default function InvoiceEditor({ invoiceId, navigate }: EditorProps): Rea
           setTerms(inv.terms)
           setPayments(await api.listPayments(invoiceId))
         } else {
-          setInvoiceNo(await api.nextInvoiceNo())
+          setBrandId(defaultBrand?.id ?? null)
+          setInvoiceNo(
+            defaultBrand ? await api.brandNextNo(defaultBrand.id) : await api.nextInvoiceNo()
+          )
           setTemplateId(tpl.find((t) => t.is_default)?.id ?? tpl[0]?.id ?? null)
           setTaxEnabled(co.tax_enabled_default)
-          setNotes(co.default_notes)
-          setTerms(co.default_terms)
+          // The brand's own wording where it has some, otherwise the app-wide text.
+          setNotes(defaultBrand?.default_notes?.trim() || co.default_notes)
+          setTerms(defaultBrand?.default_terms?.trim() || co.default_terms)
         }
       } catch (err) {
         toast.error(err)
@@ -220,6 +232,7 @@ export default function InvoiceEditor({ invoiceId, navigate }: EditorProps): Rea
       due_date: dueDate || null,
       customer_id: customerId,
       customer_snapshot: customers.find((c) => c.id === customerId) ?? {},
+      brand_id: brandId,
       template_id: templateId,
       po_number: poNumber,
       subtotal: 0,
@@ -239,7 +252,7 @@ export default function InvoiceEditor({ invoiceId, navigate }: EditorProps): Rea
       items: items.filter((i) => i.name.trim() !== '')
     }),
     [
-      savedInvoice, invoiceNo, invoiceDate, dueDate, customerId, customers, templateId, poNumber,
+      savedInvoice, invoiceNo, invoiceDate, dueDate, customerId, customers, brandId, templateId, poNumber,
       discountType, discountValue, taxEnabled, shipping, roundOff, status, notes, terms, items
     ]
   )
@@ -277,6 +290,7 @@ export default function InvoiceEditor({ invoiceId, navigate }: EditorProps): Rea
         due_date: dueDate || null,
         customer_id: customerId,
         customer_snapshot: {},
+        brand_id: brandId,
         template_id: templateId,
         po_number: poNumber,
         discount_type: discountType,
@@ -458,6 +472,38 @@ export default function InvoiceEditor({ invoiceId, navigate }: EditorProps): Rea
             </div>
 
             <div className="row">
+              {brands.length > 1 ? (
+                <div className="field">
+                  <label>Invoice as</label>
+                  <select
+                    value={brandId ?? ''}
+                    onChange={(e) => {
+                      const id = e.target.value ? parseInt(e.target.value, 10) : null
+                      setBrandId(id)
+                      markDirty()
+                      // A new invoice follows the brand's own number sequence and
+                      // wording; a saved one keeps the number it already has.
+                      if (!savedInvoice && id) {
+                        void api.brandNextNo(id).then(setInvoiceNo).catch(() => {})
+                        const b = brands.find((x) => x.id === id)
+                        if (b?.default_notes?.trim()) setNotes(b.default_notes)
+                        if (b?.default_terms?.trim()) setTerms(b.default_terms)
+                      }
+                    }}
+                  >
+                    {brands.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name}
+                        {b.is_default ? ' ★' : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="help">
+                    Which of your businesses this is from. Its letterhead, bank details, terms
+                    link and number sequence are used.
+                  </div>
+                </div>
+              ) : null}
               <div className="field">
                 <label>P.O. / reference number</label>
                 <input

@@ -3,6 +3,36 @@
 All notable changes to PackagingBox Invoice. Versions follow
 [semantic versioning](https://semver.org): `MAJOR.MINOR.PATCH`.
 
+## [1.6.0] - 2026-11-24
+
+### Added
+
+- **Brands - invoice as more than one business.** Settings now has a **Brands**
+  tab. Each brand carries its own trading and legal name, address, phone,
+  email, website, NTN/STRN, logo, signature, bank details, default notes and
+  terms, terms link - and **its own invoice number sequence**, so
+  `INV-0008` and `LPC-0003` run side by side without ever colliding.
+
+  The invoice editor gains an **Invoice as** picker when you have more than one
+  brand. Choosing a brand switches the letterhead in the live preview, takes
+  the next number from that brand's sequence, and pulls in its default notes
+  and terms.
+
+  Products, customers and templates stay shared, so nothing has to be
+  duplicated per brand.
+
+  **The brand is snapshotted onto each invoice**, the same way the customer
+  already was, so renaming or editing a brand never rewrites invoices you have
+  already sent.
+
+  Your existing company details become your first brand automatically, carrying
+  the invoice counter across so numbering continues unbroken, and every
+  existing invoice is attached to it.
+
+  A brand that has issued invoices is made inactive rather than deleted, so
+  those invoices keep their letterhead, and your last active brand cannot be
+  removed.
+
 ## [1.5.4] - 2026-11-24
 
 ### Fixed

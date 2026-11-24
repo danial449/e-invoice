@@ -5,6 +5,7 @@ place, see [INSTALL.md](INSTALL.md).
 
 - [Products and stock](#products-and-stock)
 - [Importing a product list](#importing-a-product-list)
+- [Brands](#brands)
 - [Customers](#customers)
 - [Making an invoice](#making-an-invoice)
 - [Round off](#round-off)
@@ -143,6 +144,44 @@ can change any of them on the product itself.
 out of your invoicing but are not lost.
 
 ---
+
+## Brands
+
+A brand is a business you invoice as. If you trade under more than one name,
+each gets its own letterhead and its own invoice numbers, while sharing one
+product catalogue and one customer list.
+
+**Settings - Brands.** Each brand holds:
+
+- trading name, legal name, address, city, country
+- phone, WhatsApp, email, website, NTN and STRN
+- logo and signature (draw it or upload a scan)
+- payment / bank details
+- default notes and terms for new invoices
+- the link to that brand's terms & conditions, and its wording
+- **its own invoice numbering** - prefix, next number and padding
+
+Give each brand a different prefix - `INV-` and `LPC-`, say - so their numbers
+can never collide. The next number for each is shown in the list.
+
+One brand is the **default** and is used for new invoices. Press the star on
+another row to change that.
+
+### Invoicing under a brand
+
+Once you have more than one, the invoice editor shows an **Invoice as** box.
+Changing it switches the letterhead in the preview, takes the next number from
+that brand's sequence, and brings in that brand's default notes and terms.
+
+The brand's details are **copied onto the invoice when you save it**, so
+editing a brand later never rewrites invoices you have already sent - exactly
+as with customer details.
+
+### Removing a brand
+
+A brand that has issued invoices is made **inactive** rather than deleted, so
+those invoices keep their letterhead. An unused one is deleted outright. You
+cannot remove your only active brand.
 
 ## Customers
 
