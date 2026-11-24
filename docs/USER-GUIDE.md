@@ -1,6 +1,6 @@
 # User guide
 
-Day-to-day use of PackagingBox Invoice. For getting it onto a PC in the first
+Day-to-day use of E-Invoice. For getting it onto a PC in the first
 place, see [INSTALL.md](INSTALL.md).
 
 - [Products and stock](#products-and-stock)
@@ -454,7 +454,7 @@ have no backup, it is gone. Set this up on day one.
 ### Taking one
 
 **Back up now** writes a single compressed `.dump` file to your backup folder
-(by default `Documents\PackagingBox Backups`). Copy it to a USB drive or a
+(by default `Documents\E-Invoice Backups`). Copy it to a USB drive or a
 cloud folder — a backup on the same disk does not help if the disk dies.
 
 ### Automatic backups

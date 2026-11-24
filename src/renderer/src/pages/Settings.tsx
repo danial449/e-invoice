@@ -697,7 +697,7 @@ function AboutTab(): React.JSX.Element {
         <tbody>
           <tr>
             <td className="dim">Application</td>
-            <td>PackagingBox Invoice {info?.version ?? ''}</td>
+            <td>E-Invoice {info?.version ?? ''}</td>
           </tr>
           <tr>
             <td className="dim">Electron</td>
@@ -720,8 +720,8 @@ function AboutTab(): React.JSX.Element {
         </tbody>
       </table>
       <div className="help mt16">
-        Built for Packaging Box Pakistan. Product catalogue, categories and company details are
-        pre-filled from packagingbox.pk.
+        The product catalogue, categories and starter brand are pre-filled for Packaging Box
+        Pakistan. Change them under Products and Brands.
       </div>
     </div>
   )

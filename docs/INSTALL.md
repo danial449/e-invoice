@@ -1,4 +1,4 @@
-# Installing PackagingBox Invoice
+# Installing E-Invoice
 
 For the person setting the app up on a Windows PC. You do not need to be a
 developer. Allow about fifteen minutes the first time.
@@ -38,7 +38,7 @@ Skip this if PostgreSQL is already on the machine.
 
 1. Go to the [Releases page](https://github.com/danial449/e-invoice/releases).
 2. Under the newest release, download
-   **`PackagingBox Invoice-<version>-setup.exe`**.
+   **`E-Invoice-<version>-setup.exe`**.
 3. Double-click it.
 4. Windows will show **"Windows protected your PC"**. This appears because the
    app is not code-signed, not because anything is wrong with it. Click
@@ -46,20 +46,20 @@ Skip this if PostgreSQL is already on the machine.
 5. Choose where to install it and finish the wizard.
 
 The installer does not need administrator rights — it installs for your user
-account only. It creates a **PackagingBox Invoice** shortcut on the Desktop and
+account only. It creates a **E-Invoice** shortcut on the Desktop and
 in the Start menu.
 
 ### Prefer not to install?
 
 Each release also works unpacked. Download the installer, or build from source
-with `npm run dist:dir`, and run `PackagingBox Invoice.exe` from the folder —
+with `npm run dist:dir`, and run `E-Invoice.exe` from the folder —
 it runs from a USB drive too.
 
 ---
 
 ## Step 3 — First run
 
-Open **PackagingBox Invoice**. You will see the connect screen.
+Open **E-Invoice**. You will see the connect screen.
 
 | Field | What to enter |
 |---|---|
@@ -73,7 +73,7 @@ Tick **Remember these details on this computer** so you are not asked again,
 then click **Connect**.
 
 > The remembered password is saved as plain text in your Windows user profile
-> (`%APPDATA%\packagingbox-invoice\dbconfig.json`). On a shared machine, leave
+> (`%APPDATA%\e-invoice\dbconfig.json`). On a shared machine, leave
 > the box unticked and type it each time.
 
 On the first connection the app creates the database, all the tables, the
@@ -112,7 +112,7 @@ Take a backup before updating anyway — it takes one click and costs nothing.
 
 ## Uninstalling
 
-Windows Settings → Apps → **PackagingBox Invoice** → Uninstall.
+Windows Settings → Apps → **E-Invoice** → Uninstall.
 
 This removes the program only. Your database and your backup files stay where
 they are. To remove the data as well, delete the `e-invoice` database in

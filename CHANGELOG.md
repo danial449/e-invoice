@@ -1,7 +1,31 @@
 # Changelog
 
-All notable changes to PackagingBox Invoice. Versions follow
+All notable changes to E-Invoice. Versions follow
 [semantic versioning](https://semver.org): `MAJOR.MINOR.PATCH`.
+
+## [1.7.0] - 2026-11-24
+
+### Changed
+
+- **The application is now called E-Invoice.** The window title, the sidebar,
+  the installer, the desktop shortcut and the About box all use the new name,
+  and the installer is `E-Invoice-<version>-setup.exe`.
+
+  This is the name of the *software*, not of the business you invoice as. Your
+  company details - including Packaging Box Pakistan as the starter brand - are
+  untouched and still come from **Brands**, so nothing on an invoice changes.
+
+  The default backup folder for a new setup is now
+  `Documents\E-Invoice Backups`. An existing backup folder is left exactly
+  where it is.
+
+  **Your saved database connection and backup settings carry over
+  automatically.** Renaming moved the folder Windows keeps them in, so the app
+  copies them across on first run rather than asking for the database password
+  again.
+
+  The installer upgrades your existing copy in place rather than installing a
+  second one beside it.
 
 ## [1.6.1] - 2026-11-24
 

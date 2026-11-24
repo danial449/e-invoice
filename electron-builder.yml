@@ -1,5 +1,8 @@
+# Deliberately unchanged across the rename to E-Invoice: Windows identifies an
+# installed program by this id, so changing it would leave the old entry behind
+# and install alongside it instead of upgrading. It is never shown to anyone.
 appId: pk.packagingbox.invoice
-productName: PackagingBox Invoice
+productName: E-Invoice
 copyright: Copyright © Packaging Box Pakistan
 
 # Where `electron-builder --publish` sends the installer. Published straight
@@ -34,7 +37,7 @@ nsis:
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   createStartMenuShortcut: true
-  shortcutName: PackagingBox Invoice
+  shortcutName: E-Invoice
   installerIcon: build/icon.ico
   uninstallerIcon: build/icon.ico
   installerHeaderIcon: build/icon.ico

@@ -155,7 +155,7 @@ function Shell(): React.JSX.Element {
     <div className="app">
       <aside className="sidebar">
         <div className="brand">
-          <div className="brand-name">Packaging Box</div>
+          <div className="brand-name">E-Invoice</div>
           <div className="brand-sub">Inventory &amp; Invoicing</div>
         </div>
 

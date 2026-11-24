@@ -24,7 +24,7 @@ export interface BackupSettings {
 }
 
 function defaultFolder(): string {
-  return path.join(app.getPath('documents'), 'PackagingBox Backups')
+  return path.join(app.getPath('documents'), 'E-Invoice Backups')
 }
 
 export function defaultBackupSettings(): BackupSettings {
@@ -460,7 +460,7 @@ export async function restoreBackup(file: string): Promise<RestoreResult> {
     password: cfg.password,
     ssl: cfg.ssl ? { rejectUnauthorized: false } : undefined,
     connectionTimeoutMillis: 10_000,
-    application_name: 'PackagingBox Invoice (restore)'
+    application_name: 'E-Invoice (restore)'
   })
 
   const quoted = '"' + cfg.database.replace(/"/g, '""') + '"'

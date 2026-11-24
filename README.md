@@ -1,9 +1,13 @@
-# PackagingBox Invoice
+# E-Invoice
 
-Desktop inventory and invoicing system for **Packaging Box Pakistan**
-([packagingbox.pk](https://packagingbox.pk)). A Windows app built with Electron,
-React and TypeScript that keeps everything in a **local PostgreSQL** database —
-no cloud, no subscription, your data stays on your machine.
+Desktop inventory and invoicing for small businesses. A Windows app built with
+Electron, React and TypeScript that keeps everything in a **local PostgreSQL**
+database — no cloud, no subscription, your data stays on your machine.
+
+Invoice as **more than one brand** from a single catalogue: each brand carries
+its own letterhead, bank details, terms and invoice number sequence. The
+starter data is pre-filled for
+[packagingbox.pk](https://packagingbox.pk), and is yours to change.
 
 [![CI](https://github.com/danial449/e-invoice/actions/workflows/ci.yml/badge.svg)](https://github.com/danial449/e-invoice/actions/workflows/ci.yml)
 
@@ -12,7 +16,7 @@ no cloud, no subscription, your data stays on your machine.
 ## Download
 
 **[Download the latest release](https://github.com/danial449/e-invoice/releases/latest)**
-— grab `PackagingBox Invoice-<version>-setup.exe` and run it.
+— grab `E-Invoice-<version>-setup.exe` and run it.
 
 You need PostgreSQL 14 or newer on the same machine. The installer needs no
 administrator rights and creates a Desktop and Start menu shortcut.

@@ -171,7 +171,7 @@ export function registerIpc(): void {
   handle('csv:saveSample', async () => {
     const { canceled, filePath } = await dialog.showSaveDialog({
       title: 'Save sample CSV',
-      defaultPath: path.join(app.getPath('documents'), 'packagingbox-products-sample.csv'),
+      defaultPath: path.join(app.getPath('documents'), 'e-invoice-products-sample.csv'),
       filters: [{ name: 'CSV', extensions: ['csv'] }]
     })
     if (canceled || !filePath) return { saved: false }

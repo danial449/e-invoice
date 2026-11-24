@@ -72,7 +72,7 @@ function makePool(cfg: DbConfig, database?: string): Pool {
     max: 10,
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 10_000,
-    application_name: 'PackagingBox Invoice'
+    application_name: 'E-Invoice'
   })
 
   // An idle client dropped by the server (restart, timeout, network blip)

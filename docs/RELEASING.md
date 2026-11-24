@@ -84,7 +84,7 @@ package, upload.
 ### 5. Publish
 
 Open the [Releases page](https://github.com/danial449/e-invoice/releases). The
-draft will be there with `PackagingBox Invoice-<version>-setup.exe` attached.
+draft will be there with `E-Invoice-<version>-setup.exe` attached.
 
 - Paste the changelog section into the notes.
 - Check the installer is attached and the size looks right (~80 MB).

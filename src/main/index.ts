@@ -14,6 +14,34 @@ const isDev = !app.isPackaged
  * Window / taskbar icon. The same relative path works in development and from
  * inside app.asar, because `resources/` ships with the bundle.
  */
+/**
+ * The app used to be packaged as `packagingbox-invoice`, and that name is what
+ * decided where Electron kept its user data. Renaming it to `e-invoice` moves
+ * that folder, which would strand the saved database connection and the backup
+ * settings in the old one. Carry them across once, on first run after the
+ * rename.
+ */
+function migrateLegacyUserData(): void {
+  try {
+    const current = app.getPath('userData')
+    const legacy = path.join(app.getPath('appData'), 'packagingbox-invoice')
+    if (legacy === current || !fs.existsSync(legacy)) return
+
+    for (const file of ['dbconfig.json', 'backup.json']) {
+      const from = path.join(legacy, file)
+      const to = path.join(current, file)
+      // Never overwrite settings already made under the new name.
+      if (fs.existsSync(from) && !fs.existsSync(to)) {
+        fs.mkdirSync(current, { recursive: true })
+        fs.copyFileSync(from, to)
+        console.log(`[startup] carried ${file} over from the previous app folder`)
+      }
+    }
+  } catch (err) {
+    console.error('[startup] could not carry the previous settings over:', err)
+  }
+}
+
 function appIcon(): string | undefined {
   const file = path.join(__dirname, '../../resources/icon.png')
   return fs.existsSync(file) ? file : undefined
@@ -28,7 +56,7 @@ function createWindow(): void {
     show: false,
     autoHideMenuBar: true,
     backgroundColor: '#0f1115',
-    title: 'PackagingBox Invoice',
+    title: 'E-Invoice',
     icon: appIcon(),
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
@@ -149,6 +177,7 @@ if (!app.requestSingleInstanceLock()) {
   })
 
   void app.whenReady().then(async () => {
+    migrateLegacyUserData()
     registerIpc()
     buildMenu()
 

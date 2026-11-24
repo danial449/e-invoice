@@ -1,7 +1,7 @@
 {
-  "name": "packagingbox-invoice",
+  "name": "e-invoice",
   "version": "1.6.1",
-  "description": "Inventory & Invoice system for Packaging Box Pakistan",
+  "description": "Inventory and invoicing for small businesses, with multi-brand invoices",
   "main": "out/main/index.js",
   "author": "Packaging Box Pakistan",
   "license": "UNLICENSED",

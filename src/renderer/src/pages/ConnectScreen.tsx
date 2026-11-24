@@ -15,7 +15,7 @@ export default function ConnectScreen({
   const [cfg, setCfg] = useState<DbConfig>(() => ({
     host: status?.config.host ?? 'localhost',
     port: status?.config.port ?? 5432,
-    database: status?.config.database ?? 'packagingbox_invoice',
+    database: status?.config.database ?? 'e-invoice',
     user: status?.config.user ?? 'postgres',
     // A saved password comes back masked, so always ask for it again here.
     password: '',
