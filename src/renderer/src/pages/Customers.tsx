@@ -180,9 +180,10 @@ export default function Customers({ navigate }: NavProps): React.JSX.Element {
                         <button
                           className="btn-ghost btn-xs"
                           title="Invoice history for this customer"
+                          aria-label="Invoice history"
                           onClick={() => setHistoryFor(c)}
                         >
-                          ◴
+                          👁
                         </button>
                         <button className="btn-ghost btn-xs" title="Edit" onClick={() => setEditing({ customer: c })}>
                           ✎

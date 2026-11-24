@@ -3,6 +3,27 @@
 All notable changes to PackagingBox Invoice. Versions follow
 [semantic versioning](https://semver.org): `MAJOR.MINOR.PATCH`.
 
+## [1.5.4] - 2026-11-24
+
+### Fixed
+
+- **The stamp ignored the status you chose.** Setting an invoice to *Paid*
+  stamped it **UNPAID**, because the automatic stamp was worked out purely from
+  how much money had been recorded against the invoice - and marking it paid
+  records nothing. The status now decides: Paid stamps PAID, Partially paid
+  stamps PART PAID, Cancelled stamps CANCELLED. Only *Issued*, which says
+  nothing about money by itself, still follows the payments.
+- The payment band under the totals had the same fault and said UNPAID on an
+  invoice marked Paid, contradicting the stamp beside it. It now agrees with
+  the status, and no longer claims a payment of zero was received.
+
+### Changed
+
+- **Invoice history moved into a popup.** It is now behind an eye button in the
+  invoice toolbar rather than a card wedged between the payments and the notes,
+  so the form stays short and the history gets the whole dialog to itself. The
+  customer history button uses the same eye icon.
+
 ## [1.5.3] - 2026-11-24
 
 ### Changed

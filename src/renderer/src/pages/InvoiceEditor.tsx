@@ -78,6 +78,7 @@ export default function InvoiceEditor({ invoiceId, navigate }: EditorProps): Rea
     }
   })
   const [fullPreview, setFullPreview] = useState(false)
+  const [historyOpen, setHistoryOpen] = useState(false)
   // Bumped whenever something happens that the trail should pick up.
   const [historyTick, setHistoryTick] = useState(0)
 
@@ -367,6 +368,15 @@ export default function InvoiceEditor({ invoiceId, navigate }: EditorProps): Rea
           <button onClick={() => navigate({ name: 'templates' } as Route)} title="Design templates">
             ✎
           </button>
+          {savedInvoice ? (
+            <button
+              onClick={() => setHistoryOpen(true)}
+              title="See everything that has happened to this invoice"
+              aria-label="Invoice history"
+            >
+              👁 History
+            </button>
+          ) : null}
           <button
             onClick={() => setFullPreview(true)}
             title="See the whole invoice at full size, exactly as it will print"
@@ -850,21 +860,6 @@ export default function InvoiceEditor({ invoiceId, navigate }: EditorProps): Rea
             </div>
           ) : null}
 
-          {/* ── History ── */}
-          {savedInvoice ? (
-            <div className="card">
-              <h3 className="card-title">
-                History
-                <span className="count">everything that happened to this invoice</span>
-              </h3>
-              <HistoryTimeline
-                key={`${savedInvoice.id}-${historyTick}`}
-                invoiceId={savedInvoice.id}
-                emptyText="Edits, status changes and payments will be listed here."
-              />
-            </div>
-          ) : null}
-
           {/* ── Notes & terms ── */}
           <div className="card">
             <div className="row">
@@ -911,6 +906,23 @@ export default function InvoiceEditor({ invoiceId, navigate }: EditorProps): Rea
         </div>
         ) : null}
       </div>
+
+      {historyOpen && savedInvoice ? (
+        <Modal
+          title={`History - ${savedInvoice.invoice_no}`}
+          onClose={() => setHistoryOpen(false)}
+          size="wide"
+        >
+          <p className="small dim mt0">
+            Everything that has happened to this invoice, newest first.
+          </p>
+          <HistoryTimeline
+            key={`${savedInvoice.id}-${historyTick}`}
+            invoiceId={savedInvoice.id}
+            emptyText="Edits, status changes and payments will be listed here."
+          />
+        </Modal>
+      ) : null}
 
       {fullPreview ? (
         <Modal

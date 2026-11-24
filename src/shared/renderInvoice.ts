@@ -412,16 +412,25 @@ function renderPaymentSummary(ctx: RenderContext, paid: number, balance: number)
   let title: string
   let detail: string
 
-  if (paid > 0 && balance <= 0) {
+  // Settled either because it was paid off, or because it was marked Paid.
+  const settled = invoice.status === 'paid' || (paid > 0 && balance <= 0)
+  const partly = !settled && (invoice.status === 'partial' || paid > 0)
+
+  if (settled) {
     cls = 'pay-paid'
     title = 'PAID IN FULL'
-    detail = `${formatMoney(paid, sym)} received${via}${on}. No balance outstanding — thank you.`
-  } else if (paid > 0) {
+    detail =
+      paid > 0
+        ? `${formatMoney(paid, sym)} received${via}${on}. No balance outstanding — thank you.`
+        : `No balance outstanding — thank you.`
+  } else if (partly) {
     cls = 'pay-partial'
     title = 'PARTIALLY PAID'
     detail =
-      `${formatMoney(paid, sym)} received${via}${on}. ` +
-      `Balance of ${formatMoney(balance, sym)} is still due.`
+      paid > 0
+        ? `${formatMoney(paid, sym)} received${via}${on}. ` +
+          `Balance of ${formatMoney(balance, sym)} is still due.`
+        : `Balance of ${formatMoney(balance, sym)} is still due.`
   } else {
     cls = 'pay-unpaid'
     title = 'UNPAID'
@@ -513,11 +522,28 @@ const STAMP_PRESETS: Record<string, { text: string; sub?: string; color: string 
   received: { text: 'RECEIVED', color: '#15803d' }
 }
 
-/** Which preset an `auto` stamp resolves to for this invoice. */
+/**
+ * Which preset an `auto` stamp resolves to.
+ *
+ * The status the user set wins. Deriving it purely from the amount paid meant
+ * an invoice marked Paid, but with no payment recorded against it, was stamped
+ * UNPAID - the opposite of what was asked for. Only `issued`, which says
+ * nothing about money by itself, falls back to the figures.
+ */
 function autoStampKey(ctx: RenderContext): string {
   const { invoice } = ctx
-  if (invoice.status === 'cancelled') return 'cancelled'
-  if (invoice.status === 'draft') return 'draft'
+  switch (invoice.status) {
+    case 'cancelled':
+      return 'cancelled'
+    case 'draft':
+      return 'draft'
+    case 'paid':
+      return 'paid'
+    case 'partial':
+      return 'partial'
+    default:
+      break
+  }
   const t = computeTotals(invoice)
   if (t.paid > 0 && t.balance <= 0) return 'paid'
   if (t.paid > 0) return 'partial'

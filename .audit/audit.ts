@@ -1232,6 +1232,58 @@ async function main(): Promise<void> {
     ok(/stamp-text"[^>]*>UNPAID</.test(unpaidHtml), 'an unpaid invoice gets UNPAID')
   })
 
+  await check('marking an invoice Paid stamps PAID, even with no payment recorded', async () => {
+    // The whole point of the bug: status said paid, paid_amount was zero, and
+    // the stamp read UNPAID.
+    const id = await newInvoice('issued', 900)
+    await invoices.setInvoiceStatus(id, 'paid')
+    const inv = await invoices.getInvoice(id)
+    eq(Number(inv!.paid_amount), 0, 'no payment was recorded against it')
+    eq(inv!.status, 'paid', 'but it is marked paid')
+
+    const html = await renderWith(id, withStamp({}))
+    ok(/stamp-text"[^>]*>PAID</.test(html), 'stamped PAID')
+    ok(!/stamp-text"[^>]*>UNPAID</.test(html), 'and definitely not UNPAID')
+  })
+
+  await check('the payment band agrees with a Paid status', async () => {
+    const id = await newInvoice('issued', 900)
+    await invoices.setInvoiceStatus(id, 'paid')
+    const html = await renderWith(id)
+    ok(html.includes('PAID IN FULL'), 'band says paid in full')
+    ok(!html.includes('UNPAID'), 'not contradicting the stamp')
+    ok(!/Rs\. 0\.00 received/.test(html), 'and does not claim a zero payment was received')
+  })
+
+  await check('marking an invoice Cancelled stamps CANCELLED', async () => {
+    const id = await newInvoice('issued', 500)
+    await invoices.setInvoiceStatus(id, 'cancelled')
+    const html = await renderWith(id, withStamp({}))
+    ok(/stamp-text"[^>]*>CANCELLED</.test(html), 'stamped CANCELLED')
+  })
+
+  await check('marking an invoice Partially paid stamps PART PAID', async () => {
+    const id = await newInvoice('issued', 800)
+    await invoices.setInvoiceStatus(id, 'partial')
+    const html = await renderWith(id, withStamp({}))
+    ok(/stamp-text"[^>]*>PART PAID</.test(html), 'stamped PART PAID')
+    ok(html.includes('PARTIALLY PAID'), 'and the band agrees')
+  })
+
+  await check('an issued invoice still follows the money', async () => {
+    const id = await newInvoice('issued', 1000)
+    const unpaidHtml = await renderWith(id, withStamp({}))
+    ok(/stamp-text"[^>]*>UNPAID</.test(unpaidHtml), 'nothing paid yet')
+
+    await invoices.addPayment({ invoiceId: id, amount: 400, method: 'cash', paidOn: '2026-06-01' })
+    const partHtml = await renderWith(id, withStamp({}))
+    ok(/stamp-text"[^>]*>PART PAID</.test(partHtml), 'part paid once money arrives')
+
+    await invoices.addPayment({ invoiceId: id, amount: 600, method: 'cash', paidOn: '2026-06-02' })
+    const paidHtml = await renderWith(id, withStamp({}))
+    ok(/stamp-text"[^>]*>PAID</.test(paidHtml), 'paid once settled')
+  })
+
   await check('a chosen stamp overrides the status', async () => {
     const html = await renderWith(unpaidId, withStamp({ design: 'duplicate' }))
     ok(/stamp-text"[^>]*>DUPLICATE</.test(html), 'DUPLICATE used on an unpaid invoice')
