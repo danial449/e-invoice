@@ -3,6 +3,17 @@
 All notable changes to PackagingBox Invoice. Versions follow
 [semantic versioning](https://semver.org): `MAJOR.MINOR.PATCH`.
 
+## [1.5.2] - 2026-11-24
+
+**The first version published as a downloadable release on GitHub.** Everything
+listed under 1.1.0 to 1.5.1 is in this installer.
+
+### Fixed
+
+- `npm run dist` failed at the final step looking for `release-notes.md`, which
+  until now only the CI workflow produced. The notes file is generated as part
+  of `dist`, defaulting to the version in `package.json`.
+
 ## [1.5.1] - 2026-11-24
 
 **This is the first version to appear as a downloadable release on GitHub.**

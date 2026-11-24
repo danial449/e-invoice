@@ -2,7 +2,10 @@
  * Pull one version's section out of CHANGELOG.md for use as GitHub release
  * notes.
  *
- *   node scripts/release-notes.mjs 1.5.0 [outfile]
+ *   node scripts/release-notes.mjs [version] [outfile]
+ *
+ * With no version it uses the one in package.json, so `npm run dist` always
+ * has a notes file to hand to electron-builder.
  *
  * Writes the text between `## [1.5.0] ...` and the next `## [` heading. If
  * there is no such section it writes a short placeholder instead, so a release
@@ -11,13 +14,18 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-const version = String(process.argv[2] ?? '').replace(/^v/, '').trim()
 const outFile = process.argv[3] ?? 'release-notes.md'
 const changelog = process.argv[4] ?? 'CHANGELOG.md'
 
+/** The tag name, or the version in package.json when run without one. */
+let version = String(process.argv[2] ?? '').replace(/^v/, '').trim()
 if (!version) {
-  console.error('Usage: node scripts/release-notes.mjs <version> [outfile] [changelog]')
-  process.exit(2)
+  try {
+    version = JSON.parse(fs.readFileSync(path.resolve('package.json'), 'utf8')).version
+  } catch {
+    console.error('No version given and package.json could not be read.')
+    process.exit(2)
+  }
 }
 
 let body = ''
