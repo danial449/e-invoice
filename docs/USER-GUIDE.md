@@ -151,6 +151,9 @@ A brand is a business you invoice as. If you trade under more than one name,
 each gets its own letterhead and its own invoice numbers, while sharing one
 product catalogue and one customer list.
 
+Your company details live here, not in a separate Company tab - a brand *is*
+your company, and you can have more than one.
+
 **Settings - Brands.** Each brand holds:
 
 - trading name, legal name, address, city, country

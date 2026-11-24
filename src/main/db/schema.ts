@@ -244,26 +244,9 @@ ALTER TABLE invoices ADD COLUMN IF NOT EXISTS brand_id INT REFERENCES brands(id)
 ALTER TABLE invoices ADD COLUMN IF NOT EXISTS brand_snapshot JSONB NOT NULL DEFAULT '{}'::jsonb;
 CREATE INDEX IF NOT EXISTS idx_invoices_brand ON invoices(brand_id);
 
--- An existing installation becomes a single brand built from its company
--- settings, carrying the invoice counter across so numbering continues
--- unbroken.
-INSERT INTO brands (
-  name, legal_name, address, city, country, phone, phone_alt, email, website,
-  ntn, strn, logo_data_url, signature_data_url, bank_details, default_terms,
-  default_notes, terms_url, terms_link_text, invoice_prefix, invoice_next_number,
-  invoice_pad, is_default, sort_order
-)
-SELECT
-  coalesce(nullif(name,''), 'My Business'), legal_name, address, city, country, phone, phone_alt,
-  email, website, ntn, strn, logo_data_url, signature_data_url, bank_details, default_terms,
-  default_notes, coalesce(terms_url,''), coalesce(terms_link_text,''), invoice_prefix,
-  invoice_next_number, invoice_pad, TRUE, 0
-FROM company_settings
-WHERE id = 1 AND NOT EXISTS (SELECT 1 FROM brands);
-
--- Invoices raised before brands existed belong to the default one.
-UPDATE invoices SET brand_id = (SELECT id FROM brands WHERE is_default ORDER BY id LIMIT 1)
-WHERE brand_id IS NULL;
+-- The default brand is created by seedDefaults(), which runs after this and
+-- after company_settings has its values - doing it here would read an empty
+-- settings row on a fresh database and create no brand at all.
 
 -- History entries written before an invoice had a customer kept customer_id
 -- NULL, so they never appeared in that customer's history. Attach them to

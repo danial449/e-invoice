@@ -3,6 +3,30 @@
 All notable changes to PackagingBox Invoice. Versions follow
 [semantic versioning](https://semver.org): `MAJOR.MINOR.PATCH`.
 
+## [1.6.1] - 2026-11-24
+
+### Changed
+
+- **Settings no longer duplicates what a brand already holds.** Adding brands
+  left the old **Company** tab asking for the same name, address, contacts,
+  logo and signature a second time, with no indication which one an invoice
+  would actually use. That tab is gone, and so are the numbering and default
+  text cards, all of which now belong to a brand.
+
+  **Invoice defaults** keeps only what is genuinely shared across every
+  brand - currency and the default tax rate - and says where the rest lives.
+
+  Nothing was lost: your details were copied into your first brand when you
+  upgraded, and that is where you edit them now.
+
+### Fixed
+
+- **A brand new installation ended up with no brand at all.** The brand was
+  created from the company settings by the schema, which runs before those
+  settings have a row, so the copy found nothing. It is now created once the
+  defaults are in place. Existing installations were unaffected; only a first
+  run on an empty database hit this.
+
 ## [1.6.0] - 2026-11-24
 
 ### Added

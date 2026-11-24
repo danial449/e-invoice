@@ -178,4 +178,46 @@ export async function seedDefaults(pool: Pool): Promise<void> {
      WHERE id = 1 AND coalesce(terms_link_text,'') = ''`,
     [COMPANY_DEFAULTS.terms_link_text]
   )
+
+  await seedDefaultBrand(pool)
+}
+
+
+/**
+ * Every installation needs at least one brand to invoice as.
+ *
+ * This runs after the company defaults above, not from the schema, because the
+ * schema executes before `company_settings` has a row - reading it there would
+ * create a brand with no address, phone or terms on a fresh database.
+ */
+async function seedDefaultBrand(pool: Pool): Promise<void> {
+  const { rows } = await pool.query<{ n: number }>('SELECT count(*)::int AS n FROM brands')
+  if (rows[0].n === 0) {
+    await pool.query(
+      `INSERT INTO brands (
+         name, legal_name, address, city, country, phone, phone_alt, email, website,
+         ntn, strn, logo_data_url, signature_data_url, bank_details, default_terms,
+         default_notes, terms_url, terms_link_text, invoice_prefix, invoice_next_number,
+         invoice_pad, is_default, sort_order
+       )
+       SELECT
+         coalesce(nullif(name,''), 'My Business'), legal_name, address, city, country, phone,
+         phone_alt, email, website, ntn, strn, logo_data_url, signature_data_url, bank_details,
+         default_terms, default_notes, coalesce(terms_url,''), coalesce(terms_link_text,''),
+         invoice_prefix, invoice_next_number, invoice_pad, TRUE, 0
+       FROM company_settings WHERE id = 1`
+    )
+  }
+
+  // Never leave the list without a default, and attach any invoice raised
+  // before brands existed to it.
+  await pool.query(
+    `UPDATE brands SET is_default = TRUE
+     WHERE id = (SELECT id FROM brands ORDER BY sort_order, id LIMIT 1)
+       AND NOT EXISTS (SELECT 1 FROM brands WHERE is_default)`
+  )
+  await pool.query(
+    `UPDATE invoices SET brand_id = (SELECT id FROM brands WHERE is_default ORDER BY id LIMIT 1)
+     WHERE brand_id IS NULL`
+  )
 }

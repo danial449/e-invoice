@@ -2,9 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { api } from '../lib/api'
 import type { BackupFile, BackupSettings, BackupToolStatus, DbStatus } from '../lib/api'
 import { ConfirmDialog, NumberField, Spinner, Toggle, useToast } from '../components/ui'
-import SignaturePad from '../components/SignaturePad'
 import Brands from './Brands'
-import { formatInvoiceNoPreview } from '../lib/format'
 import type { CompanySettings, DbConfig } from '@shared/types'
 import type { NavProps } from '../App'
 
@@ -12,17 +10,16 @@ interface Props extends NavProps {
   onDbChange: () => void
 }
 
-type Tab = 'brands' | 'company' | 'invoice' | 'database' | 'about'
+type Tab = 'brands' | 'invoice' | 'database' | 'about'
 
 export default function SettingsPage({ onDbChange }: Props): React.JSX.Element {
   const toast = useToast()
-  const [tab, setTab] = useState<Tab>('company')
+  const [tab, setTab] = useState<Tab>('brands')
   const [settings, setSettings] = useState<CompanySettings | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
   const [saving, setSaving] = useState(false)
   const [dirty, setDirty] = useState(false)
-  const [drawingSignature, setDrawingSignature] = useState(false)
 
   const loadSettings = useCallback(async (): Promise<void> => {
     setLoading(true)
@@ -68,7 +65,6 @@ export default function SettingsPage({ onDbChange }: Props): React.JSX.Element {
 
   const TABS: { id: Tab; label: string }[] = [
     { id: 'brands', label: 'Brands' },
-    { id: 'company', label: 'Company' },
     { id: 'invoice', label: 'Invoice defaults' },
     { id: 'database', label: 'Database' },
     { id: 'about', label: 'About' }
@@ -82,7 +78,7 @@ export default function SettingsPage({ onDbChange }: Props): React.JSX.Element {
           <div className="sub">{dirty ? 'Unsaved changes' : 'All changes saved'}</div>
         </div>
         <div className="topbar-actions">
-          {tab === 'company' || tab === 'invoice' ? (
+          {tab === 'invoice' ? (
             <button className="btn-primary" onClick={() => void save()} disabled={saving || !dirty}>
               {saving ? <span className="spinner" /> : null} Save
             </button>
@@ -102,7 +98,7 @@ export default function SettingsPage({ onDbChange }: Props): React.JSX.Element {
         {loadError && !settings ? (
           <div className="banner error" style={{ marginBottom: 14 }}>
             Company settings could not be loaded — {loadError}
-            {tab === 'company' || tab === 'invoice' ? (
+            {tab === 'invoice' ? (
               <>
                 {' '}
                 Fix the connection under <strong>Database</strong>, then come back to this tab.
@@ -111,207 +107,9 @@ export default function SettingsPage({ onDbChange }: Props): React.JSX.Element {
           </div>
         ) : null}
 
-        {/* ─────────── Company ─────────── */}
-        {tab === 'company' && settings ? (
-          <>
-            <div className="card">
-              <h3 className="card-title">Business details</h3>
-              <div className="row">
-                <div className="field" style={{ flex: 2 }}>
-                  <label>Trading name (shown on invoices)</label>
-                  <input value={settings.name} onChange={(e) => set('name', e.target.value)} />
-                </div>
-                <div className="field" style={{ flex: 2 }}>
-                  <label>Legal / registered name</label>
-                  <input
-                    value={settings.legal_name}
-                    onChange={(e) => set('legal_name', e.target.value)}
-                    placeholder="Optional"
-                  />
-                </div>
-              </div>
-
-              <div className="field">
-                <label>Address</label>
-                <textarea value={settings.address} onChange={(e) => set('address', e.target.value)} />
-              </div>
-
-              <div className="row">
-                <div className="field">
-                  <label>City</label>
-                  <input value={settings.city} onChange={(e) => set('city', e.target.value)} />
-                </div>
-                <div className="field">
-                  <label>Country</label>
-                  <input value={settings.country} onChange={(e) => set('country', e.target.value)} />
-                </div>
-                <div className="field">
-                  <label>Website</label>
-                  <input value={settings.website} onChange={(e) => set('website', e.target.value)} />
-                </div>
-              </div>
-
-              <div className="row">
-                <div className="field">
-                  <label>Phone</label>
-                  <input value={settings.phone} onChange={(e) => set('phone', e.target.value)} />
-                </div>
-                <div className="field">
-                  <label>WhatsApp / alternate phone</label>
-                  <input value={settings.phone_alt} onChange={(e) => set('phone_alt', e.target.value)} />
-                </div>
-                <div className="field">
-                  <label>Email</label>
-                  <input value={settings.email} onChange={(e) => set('email', e.target.value)} />
-                </div>
-              </div>
-
-              <div className="row">
-                <div className="field">
-                  <label>NTN</label>
-                  <input value={settings.ntn} onChange={(e) => set('ntn', e.target.value)} placeholder="1234567-8" />
-                </div>
-                <div className="field">
-                  <label>STRN</label>
-                  <input value={settings.strn} onChange={(e) => set('strn', e.target.value)} />
-                </div>
-              </div>
-              <div className="help">
-                NTN and STRN appear in the invoice header when the header contact block is enabled.
-              </div>
-            </div>
-
-            <div className="card">
-              <h3 className="card-title">Logo &amp; signature</h3>
-              <div className="row">
-                <div className="field">
-                  <label>Company logo</label>
-                  <div className="flex gap8">
-                    <button
-                      className="btn-sm"
-                      onClick={async () => {
-                        try {
-                          const r = await api.pickImage()
-                          if (r) {
-                            set('logo_data_url', r.dataUrl)
-                            toast.success(`Logo set from ${r.name}.`)
-                          }
-                        } catch (err) {
-                          toast.error(err)
-                        }
-                      }}
-                    >
-                      Choose image…
-                    </button>
-                    {settings.logo_data_url ? (
-                      <button className="btn-sm btn-danger" onClick={() => set('logo_data_url', '')}>
-                        Remove
-                      </button>
-                    ) : null}
-                  </div>
-                  {settings.logo_data_url ? (
-                    <img
-                      src={settings.logo_data_url}
-                      alt=""
-                      style={{ maxWidth: 220, maxHeight: 90, marginTop: 10, background: '#fff', padding: 6, borderRadius: 4 }}
-                    />
-                  ) : (
-                    <div className="help mt8">
-                      No logo set. PNG with a transparent background works best.
-                    </div>
-                  )}
-                </div>
-
-                <div className="field">
-                  <label>Signature</label>
-                  <div className="flex gap8 wrap">
-                    <button className="btn-sm btn-primary" onClick={() => setDrawingSignature(true)}>
-                      ✎ Draw signature
-                    </button>
-                    <button
-                      className="btn-sm"
-                      onClick={async () => {
-                        try {
-                          const r = await api.pickImage()
-                          if (r) set('signature_data_url', r.dataUrl)
-                        } catch (err) {
-                          toast.error(err)
-                        }
-                      }}
-                    >
-                      Upload image…
-                    </button>
-                    {settings.signature_data_url ? (
-                      <button className="btn-sm btn-danger" onClick={() => set('signature_data_url', '')}>
-                        Remove
-                      </button>
-                    ) : null}
-                  </div>
-                  {settings.signature_data_url ? (
-                    <img
-                      src={settings.signature_data_url}
-                      alt=""
-                      style={{ maxWidth: 220, maxHeight: 70, marginTop: 10, background: '#fff', padding: 6, borderRadius: 4 }}
-                    />
-                  ) : (
-                    <div className="help mt8">
-                      Optional. Appears above the signature line on every invoice. Draw it here, or
-                      upload a scan.
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </>
-        ) : null}
-
         {/* ─────────── Invoice defaults ─────────── */}
         {tab === 'invoice' && settings ? (
           <>
-            <div className="card">
-              <h3 className="card-title">Numbering</h3>
-              <div className="row">
-                <div className="field">
-                  <label>Prefix</label>
-                  <input
-                    value={settings.invoice_prefix}
-                    onChange={(e) => set('invoice_prefix', e.target.value)}
-                    placeholder="INV-"
-                  />
-                </div>
-                <div className="field">
-                  <label>Next number</label>
-                  <input
-                    type="number"
-                    min={1}
-                    value={settings.invoice_next_number}
-                    onChange={(e) => set('invoice_next_number', parseInt(e.target.value, 10) || 1)}
-                  />
-                </div>
-                <div className="field">
-                  <label>Zero padding</label>
-                  <input
-                    type="number"
-                    min={0}
-                    max={10}
-                    value={settings.invoice_pad}
-                    onChange={(e) => set('invoice_pad', parseInt(e.target.value, 10) || 0)}
-                  />
-                </div>
-              </div>
-              <div className="banner info">
-                Next invoice will be numbered{' '}
-                <strong>
-                  {formatInvoiceNoPreview(
-                    settings.invoice_prefix,
-                    settings.invoice_next_number,
-                    settings.invoice_pad
-                  )}
-                </strong>
-                . Numbers already used are skipped automatically.
-              </div>
-            </div>
-
             <div className="card">
               <h3 className="card-title">Currency &amp; tax</h3>
               <div className="row">
@@ -352,90 +150,11 @@ export default function SettingsPage({ onDbChange }: Props): React.JSX.Element {
               </div>
             </div>
 
-            <div className="card">
-              <h3 className="card-title">Default text on new invoices</h3>
-              <div className="field">
-                <label>Payment / bank details</label>
-                <textarea
-                  value={settings.bank_details}
-                  onChange={(e) => set('bank_details', e.target.value)}
-                  placeholder="Bank name, account title, account number / IBAN"
-                />
-              </div>
-              <div className="row">
-                <div className="field">
-                  <label>Default notes</label>
-                  <textarea
-                    value={settings.default_notes}
-                    onChange={(e) => set('default_notes', e.target.value)}
-                    style={{ minHeight: 120 }}
-                  />
-                  <div className="help">A short line at the bottom of every new invoice.</div>
-                </div>
-                <div className="field">
-                  <label>Default terms &amp; conditions</label>
-                  <textarea
-                    value={settings.default_terms}
-                    onChange={(e) => set('default_terms', e.target.value)}
-                    style={{ minHeight: 120 }}
-                  />
-                  <div className="help">One per line. Printed as the summary on each invoice.</div>
-                </div>
-              </div>
-            </div>
-
-            <div className="card">
-              <h3 className="card-title">
-                Link to your full terms
-                <span className="count">printed under the terms on every invoice</span>
-              </h3>
-              <div className="row">
-                <div className="field" style={{ flex: 2 }}>
-                  <label>Web address</label>
-                  <input
-                    value={settings.terms_url ?? ''}
-                    onChange={(e) => set('terms_url', e.target.value)}
-                    placeholder="https://packagingbox.pk/terms-and-conditions/"
-                  />
-                  <div className="help">Leave empty to print no link at all.</div>
-                </div>
-                <div className="field">
-                  <label>Wording shown</label>
-                  <input
-                    value={settings.terms_link_text ?? ''}
-                    onChange={(e) => set('terms_link_text', e.target.value)}
-                    placeholder="Terms & Conditions"
-                  />
-                  <div className="help">Defaults to &ldquo;Terms &amp; Conditions&rdquo;.</div>
-                </div>
-              </div>
-
-              {settings.terms_url?.trim() ? (
-                <div className="preview-strip">
-                  <span className="preview-strip-label">On the invoice</span>
-                  <span className="preview-strip-body">
-                    Full terms &amp; conditions:{' '}
-                    <a
-                      href={settings.terms_url}
-                      onClick={(e) => {
-                        e.preventDefault()
-                        void api.openExternal(settings.terms_url).catch(() => {})
-                      }}
-                    >
-                      {settings.terms_link_text?.trim() || 'Terms & Conditions'}
-                    </a>
-                  </span>
-                </div>
-              ) : (
-                <div className="banner info mb0">
-                  No link is printed while the address is empty. The terms above are still shown.
-                </div>
-              )}
-
-              <p className="small muted mb0 mt8">
-                The wording is printed as the link rather than the bare address, and stays clickable
-                in the PDF. The terms above are the summary; this page is the authority.
-              </p>
+            <div className="banner info">
+              Everything else that appears on an invoice — your name, address, logo,
+              signature, bank details, default notes and terms, the terms link and the
+              invoice numbering — belongs to a <strong>brand</strong>, so each business you
+              trade as can have its own. Set them up under <strong>Brands</strong>.
             </div>
           </>
         ) : null}
@@ -452,17 +171,6 @@ export default function SettingsPage({ onDbChange }: Props): React.JSX.Element {
         {tab === 'about' ? <AboutTab /> : null}
       </div>
 
-      {drawingSignature && settings ? (
-        <SignaturePad
-          initial={settings.signature_data_url}
-          onCancel={() => setDrawingSignature(false)}
-          onSave={(dataUrl) => {
-            set('signature_data_url', dataUrl)
-            setDrawingSignature(false)
-            toast.success('Signature captured. Remember to Save.')
-          }}
-        />
-      ) : null}
     </>
   )
 }

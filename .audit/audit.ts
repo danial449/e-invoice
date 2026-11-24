@@ -108,6 +108,20 @@ async function main(): Promise<void> {
     )
     eq(t.length, 12, 'table count')
   })
+  await check('a fresh database gets a usable default brand on the first connect', async () => {
+    // This ran before company_settings had a row, so a brand new install used
+    // to end up with no brand at all. Only the second connect papered over it.
+    const rows = await query<{ n: number }>('select count(*)::int n from brands')
+    eq(rows[0].n, 1, 'exactly one brand after a single connect')
+    const b = await queryOne<{ name: string; address: string; invoice_prefix: string; is_default: boolean }>(
+      'select name, address, invoice_prefix, is_default from brands order by id limit 1'
+    )
+    ok(!!b, 'the brand exists')
+    ok(b!.name.trim().length > 0, 'with a name')
+    ok(b!.address.trim().length > 0, 'and the seeded address, not a blank one')
+    eq(b!.is_default, true, 'and it is the default')
+  })
+
   await check('54 categories seeded', async () => {
     const r = await queryOne<{ n: number }>('select count(*)::int n from categories')
     eq(r!.n, 54)
