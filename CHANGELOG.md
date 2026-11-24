@@ -3,6 +3,24 @@
 All notable changes to PackagingBox Invoice. Versions follow
 [semantic versioning](https://semver.org): `MAJOR.MINOR.PATCH`.
 
+## [1.5.1] - 2026-11-24
+
+**This is the first version to appear as a downloadable release on GitHub.**
+Everything listed under 1.1.0 to 1.5.0 is included in this installer.
+
+### Fixed
+
+- **Releases never reached GitHub.** The release workflow ran the type check
+  and then went straight to packaging, without compiling first, so
+  electron-builder had no `out/main/index.js` to package and failed every time
+  - which is why the tags had no releases attached to them. The workflow now
+  compiles before packaging, and checks the compiled entry points exist before
+  going any further, so this fails loudly and obviously rather than as a
+  confusing packaging error.
+- Releases are published rather than created as drafts, which are invisible on
+  the Releases page.
+- Release notes are taken from the matching section of this changelog.
+
 ## [1.5.0] - 2026-11-24
 
 ### Added

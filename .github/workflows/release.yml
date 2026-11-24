@@ -37,6 +37,21 @@ jobs:
       - name: Type-check
         run: npm run typecheck
 
+      # electron-builder only packages what is already in out/. Without this
+      # it exits with "application entry file out/main/index.js does not
+      # exist", because `npm run dist` is what normally chains the two.
+      - name: Compile main, preload and renderer
+        run: npm run build
+
+      - name: Check the compiled entry point exists
+        shell: bash
+        run: |
+          test -f out/main/index.js || { echo 'out/main/index.js is missing - the build did not produce it.'; exit 1; }
+          test -f out/preload/index.js || { echo 'out/preload/index.js is missing.'; exit 1; }
+          test -f out/renderer/index.html || { echo 'out/renderer/index.html is missing.'; exit 1; }
+          echo 'Build output looks complete:'
+          ls -la out/main/index.js out/preload/index.js out/renderer/index.html
+
       - name: Release notes from the changelog
         shell: bash
         run: |
@@ -44,7 +59,7 @@ jobs:
           echo '--- notes ---'
           cat release-notes.md
 
-      - name: Build and publish the installer
+      - name: Package and publish the installer
         run: npx electron-builder --win --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
