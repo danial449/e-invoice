@@ -2,13 +2,19 @@ appId: pk.packagingbox.invoice
 productName: PackagingBox Invoice
 copyright: Copyright © Packaging Box Pakistan
 
-# Where `electron-builder --publish` sends the installer. The Release workflow
-# creates it as a draft so the notes can be written before it goes public.
+# Where `electron-builder --publish` sends the installer. Published straight
+# away - a draft release is invisible on the Releases page, so the tag would be
+# all anyone could see.
 publish:
   provider: github
   owner: danial449
   repo: e-invoice
-  releaseType: draft
+  releaseType: release
+
+# The notes come from the matching section of CHANGELOG.md, written out by the
+# Release workflow before packaging.
+releaseInfo:
+  releaseNotesFile: release-notes.md
 directories:
   buildResources: build
   output: release

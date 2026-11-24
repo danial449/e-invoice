@@ -6,8 +6,8 @@ name: Release
 #   npm version patch   # bumps package.json, commits, tags v1.0.1
 #   git push --follow-tags
 #
-# The release is created as a draft so you can write the notes and check the
-# installer before anyone sees it, then press Publish on the Releases page.
+# The release is published immediately, with notes taken from the matching
+# section of CHANGELOG.md, and the installer attached.
 
 on:
   push:
@@ -37,6 +37,13 @@ jobs:
       - name: Type-check
         run: npm run typecheck
 
+      - name: Release notes from the changelog
+        shell: bash
+        run: |
+          node scripts/release-notes.mjs "${GITHUB_REF_NAME}" release-notes.md
+          echo '--- notes ---'
+          cat release-notes.md
+
       - name: Build and publish the installer
         run: npx electron-builder --win --publish always
         env:
@@ -52,3 +59,10 @@ jobs:
           path: release/*.exe
           if-no-files-found: error
           retention-days: 30
+
+      - name: Confirm what was published
+        if: always()
+        shell: bash
+        run: |
+          echo "Release page: https://github.com/${GITHUB_REPOSITORY}/releases/tag/${GITHUB_REF_NAME}"
+          ls -la release/*.exe || echo 'No installer was produced.'
