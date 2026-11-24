@@ -3,6 +3,18 @@
 All notable changes to PackagingBox Invoice. Versions follow
 [semantic versioning](https://semver.org): `MAJOR.MINOR.PATCH`.
 
+## [1.5.0] - 2026-11-24
+
+### Added
+
+- **A signature per template.** The template designer, under *Notes, terms &
+  signature*, now has **Draw** and **Upload** next to the signature settings -
+  the same drawing pad as in Settings. A template with its own signature uses
+  it; one without falls back to the company signature, exactly as the logo
+  does, so nothing has to be set on templates that do not need it. **Use
+  company signature** clears the override again. Useful when quotations are
+  signed by someone else, or a particular template should go out unsigned.
+
 ## [1.4.0] - 2026-11-24
 
 ### Added

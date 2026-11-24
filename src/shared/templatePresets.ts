@@ -144,6 +144,7 @@ export const BASE_CONFIG: TemplateConfig = {
     showSignature: true,
     signatureLabel: 'Authorised Signature',
     signatureWidth: 160,
+    signatureDataUrl: '',
     showThankYou: true,
     thankYouText: 'Thank you for your business!'
   },

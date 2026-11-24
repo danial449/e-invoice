@@ -367,6 +367,12 @@ export interface TemplateConfig {
     showSignature: boolean
     signatureLabel: string
     signatureWidth: number
+    /**
+     * Signature for this template only, drawn or uploaded in the designer.
+     * Empty falls back to the one in Settings - Company, the same way the logo
+     * does, so most templates need nothing set here.
+     */
+    signatureDataUrl?: string
     showThankYou: boolean
     thankYouText: string
   }

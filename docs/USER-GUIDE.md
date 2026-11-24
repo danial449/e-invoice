@@ -330,6 +330,17 @@ Either way the signature appears above the signature line on every invoice. A
 drawn signature is saved with a transparent background and trimmed to the ink,
 so it sits on the page without a white box around it.
 
+### A different signature on one template
+
+The template designer has the same **Draw** and **Upload** buttons under
+*Notes, terms & signature*. A signature set there is used by **that template
+only**; every other template carries on using the company one. Press **Use
+company signature** to clear it again.
+
+That is the way to have quotations signed by one person and invoices by
+another, or to keep one template deliberately unsigned for printing and signing
+by hand.
+
 Remember to press **Save** afterwards - drawing alone does not save the setting.
 
 ## Printing and PDFs
@@ -364,7 +375,7 @@ beside it. You can change:
 | Document title | Text (INVOICE / TAX INVOICE / QUOTATION…), size, colour, alignment, uppercase |
 | Items table | Which of 10 columns appear, their heading, width, alignment and order; zebra striping; grid lines; row height; padding |
 | Totals | Position and width; which rows show; amount in words (crore/lakh); the payment status band and **its colours**; space below |
-| Blocks | Notes, terms, payment details, signature, thank-you line |
+| Blocks | Notes, terms, payment details, signature (with its own drawn or uploaded image), thank-you line |
 | Footer | Text with placeholders, alignment, colours, page numbers, and whether it is pinned to the foot of the page |
 | Stamp | PAID / UNPAID / CANCELLED and the rest, or your own image; colour, position, size, rotation, opacity |
 | Watermark | Text or image, size, colour, opacity, rotation, tiling, and automatic DRAFT / PAID / CANCELLED stamps |

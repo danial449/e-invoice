@@ -477,7 +477,11 @@ function renderBlocks(ctx: RenderContext): string {
 
   const sig = B.showSignature
     ? `<div class="signature" style="width:${B.signatureWidth}px">
-         ${company.signature_data_url ? `<img src="${escapeHtml(company.signature_data_url)}" alt="" class="sig-img">` : '<div class="sig-space"></div>'}
+         ${(() => {
+           // This template's own signature, or the company-wide one.
+           const sig = (B.signatureDataUrl ?? '').trim() || company.signature_data_url
+           return sig ? `<img src="${escapeHtml(sig)}" alt="" class="sig-img">` : '<div class="sig-space"></div>'
+         })()}
          <div class="sig-line"></div>
          <div class="sig-label">${escapeHtml(B.signatureLabel)}</div>
        </div>`

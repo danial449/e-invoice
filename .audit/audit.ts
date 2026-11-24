@@ -1276,6 +1276,50 @@ async function main(): Promise<void> {
     ok(/stamp-text"[^>]*>DRAFT</.test(forced), 'but an explicit DRAFT stamp still prints')
   })
 
+  g('Per-template signature')
+
+  await check('a template with no signature of its own uses the company one', async () => {
+    await settings.updateCompanySettings({ signature_data_url: 'data:image/png;base64,COMPANYSIG' })
+    const html = await renderWith(paidId, (c) => {
+      const b = (c as Record<string, Record<string, unknown>>).blocks
+      b.showSignature = true
+      b.signatureDataUrl = ''
+    })
+    ok(html.includes('COMPANYSIG'), 'company signature used')
+    ok(!html.includes('<div class="sig-space">'), 'and no blank placeholder drawn')
+  })
+
+  await check("a template's own signature overrides the company one", async () => {
+    const html = await renderWith(paidId, (c) => {
+      const b = (c as Record<string, Record<string, unknown>>).blocks
+      b.showSignature = true
+      b.signatureDataUrl = 'data:image/png;base64,TEMPLATESIG'
+    })
+    ok(html.includes('TEMPLATESIG'), 'template signature used')
+    ok(!html.includes('COMPANYSIG'), 'company one not also drawn')
+  })
+
+  await check('with neither set, a blank space is left to sign in', async () => {
+    await settings.updateCompanySettings({ signature_data_url: '' })
+    const html = await renderWith(paidId, (c) => {
+      const b = (c as Record<string, Record<string, unknown>>).blocks
+      b.showSignature = true
+      b.signatureDataUrl = ''
+    })
+    ok(html.includes('<div class="sig-space">'), 'room left for a wet signature')
+    ok(html.includes('sig-line'), 'and the line is still drawn')
+  })
+
+  await check('whitespace in the template signature is not mistaken for an image', async () => {
+    await settings.updateCompanySettings({ signature_data_url: 'data:image/png;base64,COMPANYSIG' })
+    const html = await renderWith(paidId, (c) => {
+      const b = (c as Record<string, Record<string, unknown>>).blocks
+      b.showSignature = true
+      b.signatureDataUrl = '   '
+    })
+    ok(html.includes('COMPANYSIG'), 'falls back rather than rendering an empty src')
+  })
+
   g('Invoice history')
 
   let histId = 0

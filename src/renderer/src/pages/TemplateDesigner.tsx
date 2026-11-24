@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { api } from '../lib/api'
+import SignaturePad from '../components/SignaturePad'
 import {
   Accordion, ColorField, ConfirmDialog, Modal, NumberField, SegmentedControl, Slider,
   Spinner, TextField, Toggle, useDebounced, useToast
@@ -119,6 +120,7 @@ export default function TemplateDesigner(_props: NavProps): React.JSX.Element {
   const [dirty, setDirty] = useState(false)
   const [creating, setCreating] = useState(false)
   const [deleting, setDeleting] = useState<InvoiceTemplate | null>(null)
+  const [drawingSignature, setDrawingSignature] = useState(false)
   const demo = useMemo(() => demoInvoice(), [])
 
   const load = useCallback(
@@ -558,6 +560,59 @@ export default function TemplateDesigner(_props: NavProps): React.JSX.Element {
               <>
                 <TextField label="Signature label" value={config.blocks.signatureLabel} onChange={(v) => patch('blocks', { signatureLabel: v })} />
                 <Slider label="Signature width" unit="px" min={80} max={300} value={config.blocks.signatureWidth} onChange={(v) => patch('blocks', { signatureWidth: v })} />
+
+                <div className="ctl">
+                  <label>Signature image</label>
+                  <div className="flex gap8 wrap items-center">
+                    <button className="btn-sm btn-primary" onClick={() => setDrawingSignature(true)}>
+                      ✎ Draw
+                    </button>
+                    <button
+                      className="btn-sm"
+                      onClick={async () => {
+                        try {
+                          const r = await api.pickImage()
+                          if (r) patch('blocks', { signatureDataUrl: r.dataUrl })
+                        } catch (err) {
+                          toast.error(err)
+                        }
+                      }}
+                    >
+                      Upload…
+                    </button>
+                    {config.blocks.signatureDataUrl ? (
+                      <button
+                        className="btn-sm btn-danger"
+                        onClick={() => patch('blocks', { signatureDataUrl: '' })}
+                        title="Go back to the signature set in Settings → Company"
+                      >
+                        Use company signature
+                      </button>
+                    ) : null}
+                  </div>
+
+                  {config.blocks.signatureDataUrl ? (
+                    <>
+                      <img
+                        src={config.blocks.signatureDataUrl}
+                        alt=""
+                        style={{
+                          maxWidth: 200, maxHeight: 64, marginTop: 10,
+                          background: '#fff', padding: 6, borderRadius: 4
+                        }}
+                      />
+                      <div className="help">
+                        Used on this template only. Other templates keep the company signature.
+                      </div>
+                    </>
+                  ) : (
+                    <div className="help mt8">
+                      Using the signature from Settings → Company. Draw or upload one here to
+                      override it for this template only — useful when a second person signs
+                      quotations, or a template goes out unsigned.
+                    </div>
+                  )}
+                </div>
               </>
             ) : null}
             <Toggle label="Show thank-you line" checked={config.blocks.showThankYou} onChange={(v) => patch('blocks', { showThankYou: v })} />
@@ -876,6 +931,18 @@ export default function TemplateDesigner(_props: NavProps): React.JSX.Element {
             }
           }}
           onCancel={() => setDeleting(null)}
+        />
+      ) : null}
+
+      {drawingSignature && config ? (
+        <SignaturePad
+          initial={config.blocks.signatureDataUrl}
+          onCancel={() => setDrawingSignature(false)}
+          onSave={(dataUrl) => {
+            patch('blocks', { signatureDataUrl: dataUrl })
+            setDrawingSignature(false)
+            toast.success('Signature added to this template. Remember to Save.')
+          }}
         />
       ) : null}
     </>
