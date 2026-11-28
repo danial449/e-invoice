@@ -1,6 +1,6 @@
 {
   "name": "e-invoice",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "description": "Inventory and invoicing for small businesses, with multi-brand invoices",
   "main": "out/main/index.js",
   "author": "Packaging Box Pakistan",
