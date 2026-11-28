@@ -1851,6 +1851,32 @@ async function main(): Promise<void> {
     ok(/\.thanks \{[^}]*margin-top: auto/.test(html), 'the pair is pushed down together')
   })
 
+  await check('the terms sheet footer sits at the foot, like the invoice one', async () => {
+    // The thank-you line takes up the slack on the invoice sheet. The terms
+    // sheet has no thank-you, so without a rule of its own its footer floated
+    // up against the end of the terms instead of sitting at the bottom.
+    const id = await invoices.saveInvoice({
+      invoice_date: '2026-09-05', due_date: null, customer_id: null, template_id: null,
+      po_number: '', discount_type: 'amount', discount_value: 0, tax_enabled: false,
+      shipping: 0, round_off: 0, paid_amount: 0, status: 'issued', notes: '',
+      terms: '<p>Short terms, so there is plenty of empty page below them.</p>',
+      items: [item({ name: 'Footer placement', qty: 1, unit_price: 100 })]
+    } as never)
+    const html = await renderWith(id.id)
+    ok(html.includes('<div class="sheet terms-sheet">'), 'the terms sheet is there')
+    ok(
+      /\.terms-sheet \.doc-footer \{[^}]*margin-top: auto/.test(html),
+      'its footer is pushed to the foot of the sheet'
+    )
+  })
+
+  await check('with the footer unpinned neither sheet forces it down', async () => {
+    const html = await renderWith(paidId, (c) => {
+      ;(c as Record<string, Record<string, unknown>>).footer.stickToBottom = false
+    })
+    ok(!/\.terms-sheet \.doc-footer \{[^}]*margin-top: auto/.test(html), 'no pinning rule')
+  })
+
   await check('the thank-you is not repeated on the terms sheet', async () => {
     const id = await invoices.saveInvoice({
       invoice_date: '2026-09-01', due_date: null, customer_id: null, template_id: null,

@@ -959,6 +959,10 @@ function renderStyles(ctx: RenderContext): string {
   ${footerSticky ? `
   .sheet { display: flex; flex-direction: column; }
   .content { flex: 1 1 auto; display: flex; flex-direction: column; }
+  /* The terms sheet carries no thank-you line, so there is nothing on it to
+     take up the slack - its own footer has to, or it floats in the middle of
+     the page instead of sitting at the foot of it like the invoice's. */
+  .terms-sheet .doc-footer { margin-top: auto; }
   .content > .blocks, .content > section:last-of-type { flex: 0 0 auto; }
   ` : ''}
 

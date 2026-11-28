@@ -3,6 +3,16 @@
 All notable changes to E-Invoice. Versions follow
 [semantic versioning](https://semver.org): `MAJOR.MINOR.PATCH`.
 
+## [1.9.2] - 2026-11-28
+
+### Fixed
+
+- **The footer on the terms page floated in the middle of the sheet** instead
+  of sitting at the foot of it like the one on the invoice. Moving the
+  thank-you line down to the footer gave the invoice sheet something to take up
+  the spare room, but the terms sheet carries no thank-you, so nothing pushed
+  its footer down. Both footers now sit in exactly the same place.
+
 ## [1.9.1] - 2026-11-28
 
 ### Fixed
