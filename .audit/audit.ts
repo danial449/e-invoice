@@ -1195,7 +1195,13 @@ async function main(): Promise<void> {
 
   await check('the footer is pinned to the foot of the page by default', async () => {
     const html = await renderWith(paidId)
-    ok(/\.doc-footer \{[^}]*margin-top: auto/.test(html), 'footer pushed to the bottom')
+    // Whichever of the pair comes first takes the slack: with a thank-you line
+    // that is the thank-you, so the two stay together at the foot of the page.
+    ok(
+      /\.thanks \{[^}]*margin-top: auto/.test(html) ||
+        /\.doc-footer \{[^}]*margin-top: auto/.test(html),
+      'footer pushed to the bottom'
+    )
     ok(/\.doc-footer\.repeat \{[\s\S]*?position: fixed/.test(html), 'and fixed for print')
   })
 
@@ -1795,6 +1801,76 @@ async function main(): Promise<void> {
     const plain = richTextToPlain('<h2>Terms</h2><ul><li>One</li><li>Two</li></ul>')
     ok(plain.includes('Terms'), 'heading text')
     ok(plain.includes('\u2022 One'), 'bullets marked: ' + JSON.stringify(plain))
+  })
+
+  g('Watermark & thank-you placement')
+
+  const withWatermark = (over: Record<string, unknown>) => (c: Record<string, never>): void => {
+    const w = (c as unknown as Record<string, Record<string, unknown>>).watermark
+    w.enabled = true
+    w.type = 'text'
+    w.text = 'PACKAGING BOX'
+    Object.assign(w, over)
+  }
+
+  await check('the template watermark is used whatever the invoice status', async () => {
+    // It used to be overwritten with DRAFT / PAID / CANCELLED, so the mark a
+    // user had set up changed by itself from one invoice to the next.
+    for (const [id, label] of [[paidId, 'paid'], [unpaidId, 'unpaid'], [partialId, 'partial']] as [number, string][]) {
+      const html = await renderWith(id, withWatermark({}))
+      ok(html.includes('PACKAGING BOX'), `the template watermark is used on the ${label} invoice`)
+      ok(!/watermark[\s\S]{0,400}>PAID</.test(html), `status text not substituted (${label})`)
+    }
+
+    const cancelledId = await newInvoice('issued', 700)
+    await invoices.setInvoiceStatus(cancelledId, 'cancelled')
+    const html = await renderWith(cancelledId, withWatermark({}))
+    ok(html.includes('PACKAGING BOX'), 'and on a cancelled one')
+    ok(!/watermark[\s\S]{0,400}>CANCELLED</.test(html), 'not replaced with CANCELLED')
+  })
+
+  await check('a draft keeps the template watermark too', async () => {
+    const dId = await newInvoice('draft', 300)
+    const html = await renderWith(dId, withWatermark({}))
+    ok(html.includes('PACKAGING BOX'), 'template text')
+    ok(!/watermark[\s\S]{0,400}>DRAFT</.test(html), 'not replaced with DRAFT')
+  })
+
+  await check('the thank-you sits directly above the footer rule', async () => {
+    const html = await renderWith(paidId)
+    // Measure inside the body: the class names appear in the stylesheet too.
+    const body = html.slice(html.indexOf('<body>'))
+    const thanks = body.indexOf('class="thanks"')
+    const footer = body.indexOf('class="doc-footer')
+    const blocks = body.indexOf('class="blocks"')
+    ok(thanks > 0, 'the line is printed')
+    ok(thanks > blocks, 'after the text blocks')
+    ok(footer > thanks, 'and immediately before the footer')
+    // With a pinned footer it is the thank-you that takes the slack, so the
+    // two stay together at the foot of the page.
+    ok(/\.thanks \{[^}]*margin-top: auto/.test(html), 'the pair is pushed down together')
+  })
+
+  await check('the thank-you is not repeated on the terms sheet', async () => {
+    const id = await invoices.saveInvoice({
+      invoice_date: '2026-09-01', due_date: null, customer_id: null, template_id: null,
+      po_number: '', discount_type: 'amount', discount_value: 0, tax_enabled: false,
+      shipping: 0, round_off: 0, paid_amount: 0, status: 'issued', notes: '',
+      terms: '<p>Some terms for the second sheet.</p>',
+      items: [item({ name: 'Thanks test', qty: 1, unit_price: 50 })]
+    } as never)
+    const html = await renderWith(id.id)
+    const termsSheet = html.slice(html.indexOf('<div class="sheet terms-sheet">'))
+    ok(!termsSheet.includes('class="thanks"'), 'only on the invoice sheet')
+    eq((html.match(/class="thanks"/g) ?? []).length, 1, 'printed exactly once')
+  })
+
+  await check('turning the thank-you off leaves the footer pinned', async () => {
+    const html = await renderWith(paidId, (c) => {
+      ;(c as Record<string, Record<string, unknown>>).blocks.showThankYou = false
+    })
+    ok(!html.includes('class="thanks"'), 'no line')
+    ok(/\.doc-footer \{[^}]*margin-top: auto/.test(html), 'the footer takes the slack instead')
   })
 
   g('Terms page')

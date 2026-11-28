@@ -96,6 +96,11 @@ const item = (p: Partial<InvoiceItem>): InvoiceItem => ({
   const pays = await invoices.listPayments(inv.id)
   const cfg = JSON.parse(JSON.stringify(TEMPLATE_PRESETS[0].config))
   cfg.totals.showAmountInWords = true
+  // A watermark, to prove it stays the template's on a part-paid invoice.
+  cfg.watermark.enabled = true
+  cfg.watermark.type = 'text'
+  cfg.watermark.text = 'PACKAGING BOX'
+  cfg.watermark.opacity = 0.08
   // Rich terms, so the dedicated page has something real on it.
   final!.terms =
     '<h2>Payment</h2>' +

@@ -862,12 +862,6 @@ export default function TemplateDesigner(_props: NavProps): React.JSX.Element {
                 {config.watermark.type === 'text' ? (
                   <>
                     <TextField label="Watermark text" value={config.watermark.text} onChange={(v) => patch('watermark', { text: v })} />
-                    <Toggle
-                      label="Use the invoice status instead"
-                      checked={config.watermark.useStatusText}
-                      onChange={(v) => patch('watermark', { useStatusText: v })}
-                      help="Stamps DRAFT, PAID or CANCELLED automatically on those invoices."
-                    />
                     <Slider label="Text size" unit="px" min={20} max={200} value={config.watermark.fontSize} onChange={(v) => patch('watermark', { fontSize: v })} />
                     <ColorField label="Text colour" value={config.watermark.color} onChange={(v) => patch('watermark', { color: v })} />
                   </>

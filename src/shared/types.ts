@@ -455,7 +455,6 @@ export interface TemplateConfig {
     text: string
     imageDataUrl: string
     /** when true and status is draft/cancelled, text is replaced by the status */
-    useStatusText: boolean
     fontSize: number
     color: string
     opacity: number

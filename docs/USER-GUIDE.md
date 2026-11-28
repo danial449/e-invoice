@@ -461,7 +461,7 @@ beside it. You can change:
 | Blocks | Notes, terms, payment details, signature (with its own drawn or uploaded image), thank-you line |
 | Footer | Text with placeholders, alignment, colours, page numbers, and whether it is pinned to the foot of the page |
 | Stamp | PAID / UNPAID / CANCELLED and the rest, or your own image; colour, position, size, rotation, opacity |
-| Watermark | Text or image, size, colour, opacity, rotation, tiling, and automatic DRAFT / PAID / CANCELLED stamps |
+| Watermark | Text or image, size, colour, opacity, rotation, tiling. The same mark is used on every invoice, whatever its status |
 
 Header, footer and title text accept placeholders:
 `{{company_name}}`, `{{company_address}}`, `{{company_phone}}`,

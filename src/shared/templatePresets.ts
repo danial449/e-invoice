@@ -166,7 +166,6 @@ export const BASE_CONFIG: TemplateConfig = {
     type: 'text',
     text: 'PACKAGING BOX',
     imageDataUrl: '',
-    useStatusText: true,
     fontSize: 72,
     color: '#0f766e',
     opacity: 0.07,

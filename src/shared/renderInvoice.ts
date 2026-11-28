@@ -499,8 +499,21 @@ function renderBlocks(ctx: RenderContext): string {
   <section class="blocks">
     ${cols}
     ${sig ? `<div class="blocks-right">${sig}</div>` : ''}
-  </section>
-  ${B.showThankYou && B.thankYouText ? `<div class="thanks">${substitute(B.thankYouText, ctx)}</div>` : ''}`
+  </section>`
+}
+
+/**
+ * The thank-you line, printed just above the footer rule on the invoice.
+ *
+ * It belongs with the footer rather than with the text blocks: left in the
+ * flow it floated up against the notes while the footer sat at the foot of
+ * the page, with a gap between them. It is deliberately not rendered on the
+ * terms sheet.
+ */
+function renderThankYou(ctx: RenderContext): string {
+  const B = ctx.config.blocks
+  if (!B.showThankYou || !B.thankYouText) return ''
+  return `<div class="thanks">${substitute(B.thankYouText, ctx)}</div>`
 }
 
 /** The built-in stamp designs, as plain text with an optional sub-line. */
@@ -641,10 +654,11 @@ function renderWatermark(ctx: RenderContext): string {
   const W = config.watermark
   if (!W.enabled) return ''
 
-  let text = W.text
-  if (W.useStatusText && (invoice.status === 'draft' || invoice.status === 'cancelled' || invoice.status === 'paid')) {
-    text = invoice.status.toUpperCase()
-  }
+  // The watermark is the template's, and only the template's. It used to be
+  // overwritten with DRAFT / PAID / CANCELLED, which meant the mark a user had
+  // set up changed by itself depending on the invoice. The status is already
+  // announced by the stamp and the payment band.
+  const text = W.text
 
   const inner =
     W.type === 'image' && W.imageDataUrl
@@ -680,6 +694,7 @@ function renderStyles(ctx: RenderContext): string {
   // Pinned by default: an invoice footer belongs at the foot of the page, not
   // floating directly under a short item list.
   const footerSticky = c.footer.enabled && c.footer.stickToBottom !== false
+  const thanksShown = c.blocks.showThankYou && !!c.blocks.thankYouText
   const footerRepeats = c.footer.showOnAllPages || footerSticky
 
   const T = c.termsPage
@@ -917,7 +932,8 @@ function renderStyles(ctx: RenderContext): string {
   .sig-label { font-size: ${Math.max(6, f.baseSize - 1)}pt; color: ${f.mutedColor}; }
   .thanks {
     text-align: center;
-    margin-top: 10px;
+    margin-top: ${footerSticky && thanksShown ? 'auto' : '10px'};
+    padding-bottom: 4px;
     font-size: ${f.baseSize}pt;
     color: ${col.accent};
     font-weight: 600;
@@ -926,7 +942,7 @@ function renderStyles(ctx: RenderContext): string {
 
   /* ── Footer ── */
   .doc-footer {
-    margin-top: ${footerSticky ? 'auto' : '12px'};
+    margin-top: ${footerSticky && !thanksShown ? 'auto' : footerSticky ? '0' : '12px'};
     padding-top: ${footerSticky ? '12px' : '0'};
     padding: ${c.footer.paddingY}px 0;
     background: ${c.footer.background};
@@ -1097,6 +1113,7 @@ export function renderInvoiceBody(ctx: RenderContext): string {
     ${renderTable(ctx)}
     ${renderTotals(ctx)}
     ${renderBlocks(ctx)}
+    ${renderThankYou(ctx)}
     ${renderFooter(ctx)}
   </div>`
 }

@@ -3,6 +3,22 @@
 All notable changes to E-Invoice. Versions follow
 [semantic versioning](https://semver.org): `MAJOR.MINOR.PATCH`.
 
+## [1.9.0] - 2026-11-28
+
+### Changed
+
+- **The watermark stays the one you set on the template.** It was being
+  overwritten with DRAFT, PAID or CANCELLED on those invoices, so the mark you
+  had designed changed by itself from one invoice to the next. The template's
+  watermark is now used on every invoice, whatever its status. The status is
+  still shown by the stamp and by the payment band under the totals, which is
+  where it belongs. The *Use the invoice status instead* option is gone.
+- **The thank-you line sits just above the footer rule.** It used to stay up
+  with the notes while the pinned footer dropped to the foot of the page,
+  leaving a gap between them. The line and the footer now travel down together,
+  so the wording sits immediately above the rule. It prints on the invoice
+  only, never on the terms sheet.
+
 ## [1.8.1] - 2026-11-28
 
 ### Changed

@@ -111,7 +111,7 @@ replaced. Controls cover:
 | **Totals** | Position and width; show/hide subtotal, discount, tax, delivery, round-off, paid, balance; **amount in words** (crore/lakh); grand-total styling |
 | **Blocks** | Notes, terms, payment details, signature (with image and width), thank-you line — each with its own heading |
 | **Footer** | Show/hide, repeat on every page, text with placeholders, alignment, colours, padding, top line, **page numbers** and their format |
-| **Watermark** | **Enable/disable**, text or image, size, colour, opacity, rotation, position, tiling, and an automatic DRAFT / PAID / CANCELLED stamp |
+| **Watermark** | **Enable/disable**, text or image, size, colour, opacity, rotation, position, tiling. The same mark prints on every invoice, whatever its status |
 
 Placeholders usable in header, footer and title text:
 `{{company_name}}`, `{{company_legal_name}}`, `{{company_address}}`,
