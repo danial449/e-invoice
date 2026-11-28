@@ -3,6 +3,17 @@
 All notable changes to E-Invoice. Versions follow
 [semantic versioning](https://semver.org): `MAJOR.MINOR.PATCH`.
 
+## [1.9.1] - 2026-11-28
+
+### Fixed
+
+- **Releases on GitHub had an empty description.** The installer was attached
+  and the release was published, but the page said nothing about what had
+  changed, because electron-builder does not apply its release-notes setting
+  when publishing to GitHub. The notes are now written onto the release
+  afterwards, straight from the matching section of this changelog, so each
+  release page explains itself.
+
 ## [1.9.0] - 2026-11-28
 
 ### Changed
