@@ -820,18 +820,25 @@ async function main(): Promise<void> {
   })
 
   const unpaidId = await newInvoice('issued', 1000)
-  await check('the terms link is printed with the terms, wherever they are', async () => {
-    // With a terms page the link belongs there; without one it sits under the
-    // terms block on the first page. Either way it is wording, not an address.
-    const onPage = await renderWith(unpaidId)
-    ok(/class="tp-link"/.test(onPage), 'printed on the terms page')
-    ok(onPage.includes('packagingbox.pk/terms-and-conditions'), 'pointing at the terms page')
-    ok(/>[^<]*Terms &amp; Conditions<\/a>/.test(onPage), 'the wording is the link text')
+  await check('no link is bolted onto the terms from settings any more', async () => {
+    // Links now belong in the wording itself, put there with the editor's link
+    // button, so nothing is appended behind the user's back.
+    const html = await renderWith(unpaidId)
+    ok(!/class="tp-link"/.test(html), 'nothing appended to the terms page')
+    ok(!/class="terms-link"/.test(html), 'nothing appended under the terms block')
+  })
 
-    const inBlocks = await renderWith(unpaidId, (c) => {
-      ;(c as Record<string, Record<string, unknown>>).termsPage.enabled = false
-    })
-    ok(/class="terms-link"><a href="/.test(inBlocks), 'and under the block when there is no page')
+  await check('a link typed into the terms is kept and stays clickable', async () => {
+    const linked = await invoices.saveInvoice({
+      invoice_date: '2026-08-09', due_date: null, customer_id: null, template_id: null,
+      po_number: '', discount_type: 'amount', discount_value: 0, tax_enabled: false,
+      shipping: 0, round_off: 0, paid_amount: 0, status: 'issued', notes: '',
+      terms: '<p>See <a href="https://packagingbox.pk/terms-and-conditions/">our full terms</a>.</p>',
+      items: [item({ name: 'Linked terms', qty: 1, unit_price: 100 })]
+    } as never)
+    const html = await renderWith(linked.id)
+    ok(html.includes('href="https://packagingbox.pk/terms-and-conditions/"'), 'the link survives')
+    ok(html.includes('our full terms'), 'with the wording the user chose')
   })
 
   await check('an unpaid invoice shows the UNPAID band with the amount due', async () => {
@@ -1199,34 +1206,6 @@ async function main(): Promise<void> {
     })
     ok(/\.doc-footer \{[^}]*margin-top: 12px/.test(html), 'normal flow')
     ok(!/\.sheet \{ display: flex/.test(html), 'no flex push-down')
-  })
-
-  await check('the terms link is wording, not a bare address', async () => {
-    await settings.updateCompanySettings({
-      terms_url: 'https://packagingbox.pk/terms-and-conditions/',
-      terms_link_text: 'Our Terms & Conditions'
-    })
-    const html = await renderWith(unpaidId)
-    ok(html.includes('Our Terms &amp; Conditions</a>'), 'the wording is the link text')
-    ok(html.includes('href="https://packagingbox.pk/terms-and-conditions/"'), 'still clickable')
-    ok(!/terms-link[^>]*>\s*Full terms &amp; conditions: packagingbox/.test(html),
-      'the raw address is no longer printed as text')
-  })
-
-  await check('the link falls back to sensible wording when none is set', async () => {
-    await settings.updateCompanySettings({ terms_link_text: '' })
-    const html = await renderWith(unpaidId)
-    ok(html.includes('>Terms &amp; Conditions</a>'), 'default wording used')
-  })
-
-  await check('a non-http address is never turned into a link', async () => {
-    await settings.updateCompanySettings({ terms_url: 'javascript:alert(1)' })
-    const html = await renderWith(unpaidId)
-    ok(!html.includes('javascript:'), 'refused')
-    ok(!/class="terms-link"/.test(html), 'no link rendered at all')
-    await settings.updateCompanySettings({ terms_url: 'packagingbox.pk/terms-and-conditions/' })
-    const html2 = await renderWith(unpaidId)
-    ok(html2.includes('href="https://packagingbox.pk/terms-and-conditions/"'), 'bare domain upgraded to https')
   })
 
   g('Stamps')
@@ -1656,7 +1635,6 @@ async function main(): Promise<void> {
     const html = renderInvoiceHtml({ invoice: inv, company, config: cfg, mode: 'print' })
     ok(html.includes('Lahore Pouch Co'), 'the brand name is on the invoice')
     ok(html.includes('sales@lahorepouch.pk'), 'and its email')
-    ok(html.includes('lahorepouch.pk/terms'), 'and its own terms link')
     ok(!html.includes('info@packagingbox.pk'), 'not the other brand details')
   })
 
@@ -1839,7 +1817,7 @@ async function main(): Promise<void> {
   await check('the terms print on a page of their own, not on page one', async () => {
     richId = await termsInvoice(RICH_TERMS)
     const html = await renderWith(richId)
-    ok(html.includes('class="terms-page"'), 'a terms page exists')
+    ok(html.includes('<div class="sheet terms-sheet">'), 'a terms page exists')
     ok(/page-break-before: always/.test(html), 'and it starts on a new sheet')
 
     // The wording must appear once, on that page - not also in the blocks row.
@@ -1869,7 +1847,7 @@ async function main(): Promise<void> {
     const html = await renderWith(richId, (c) => {
       ;(c as Record<string, Record<string, unknown>>).termsPage.enabled = false
     })
-    ok(!html.includes('class="terms-page"'), 'no separate page')
+    ok(!html.includes('<div class="sheet terms-sheet">'), 'no separate page')
     ok(html.includes('50% advance with the order'), 'the terms still print somewhere')
     ok(/block-label">Terms &amp; Conditions/.test(html), 'back in the blocks row')
   })
@@ -1877,17 +1855,17 @@ async function main(): Promise<void> {
   await check('an invoice with no terms gets no empty page', async () => {
     const blankId = await termsInvoice('')
     const html = await renderWith(blankId)
-    ok(!html.includes('class="terms-page"'), 'nothing printed')
+    ok(!html.includes('<div class="sheet terms-sheet">'), 'nothing printed')
     const spaces = await renderWith(blankId, (c) => {
       ;(c as Record<string, Record<string, unknown>>).termsPage.enabled = true
     })
-    ok(!spaces.includes('class="terms-page"'), 'and still nothing when it is only whitespace')
+    ok(!spaces.includes('<div class="sheet terms-sheet">'), 'and still nothing when it is only whitespace')
   })
 
   await check('terms typed as plain text still work, from before the editor', async () => {
     const plainId = await termsInvoice('1. Pay in 7 days\n2. No returns after 30 days')
     const html = await renderWith(plainId)
-    ok(html.includes('class="terms-page"'), 'they get the page too')
+    ok(html.includes('<div class="sheet terms-sheet">'), 'they get the page too')
     ok(html.includes('Pay in 7 days'), 'wording kept')
     ok(html.includes('<br>'), 'line breaks preserved rather than run together')
   })

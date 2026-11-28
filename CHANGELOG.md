@@ -3,6 +3,20 @@
 All notable changes to E-Invoice. Versions follow
 [semantic versioning](https://semver.org): `MAJOR.MINOR.PATCH`.
 
+## [1.8.1] - 2026-11-28
+
+### Changed
+
+- **The terms page is now a separate sheet.** It was appended inside the
+  invoice's own sheet, so on screen the two ran together as one long page with
+  a seam. The terms now sit on their own sheet with the same paper size,
+  margins and drop shadow as the invoice, and a clear gap between the two.
+- **The terms link and its wording are no longer settings.** Those two fields
+  are gone from the brand form, and nothing is appended to the invoice behind
+  your back. Put a link in the terms themselves with the editor's link button,
+  where you can word it however you like and place it where you want it. Links
+  already typed into the terms keep working and stay clickable in the PDF.
+
 ## [1.8.0] - 2026-11-28
 
 ### Added

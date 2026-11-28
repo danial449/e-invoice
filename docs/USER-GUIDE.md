@@ -406,6 +406,10 @@ formatting carry over.
 Pasting from Word or a web page is safe: the formatting that matters is kept
 and everything else is discarded.
 
+To point at your published terms, use the editor's **link** button inside the
+wording - there is no separate setting for it, so the link reads how you want
+and sits where you put it.
+
 ### The page itself
 
 **Invoice Templates - Terms page** controls it:
@@ -416,7 +420,6 @@ and everything else is discarded.
 | Page heading | Default *Terms & Conditions* |
 | Show the invoice number and date | So a separated page can be traced back |
 | Repeat the header / footer | Carry the letterhead or page numbers onto the page |
-| Show the link to your published terms | Printed at the end |
 | Layout | One or two columns - two fits a long numbered list on one sheet |
 | Text size, line spacing | For fitting long terms |
 | Leave room for the customer to sign | Adds a signature and date strip |

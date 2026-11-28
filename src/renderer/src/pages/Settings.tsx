@@ -152,7 +152,7 @@ export default function SettingsPage({ onDbChange }: Props): React.JSX.Element {
 
             <div className="banner info">
               Everything else that appears on an invoice — your name, address, logo,
-              signature, bank details, default notes and terms, the terms link and the
+              signature, bank details, default notes and terms, and the
               invoice numbering — belongs to a <strong>brand</strong>, so each business you
               trade as can have its own. Set them up under <strong>Brands</strong>.
             </div>

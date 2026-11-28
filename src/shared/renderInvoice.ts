@@ -55,19 +55,6 @@ function tint(color: string, percent: number): string {
   return `rgba(${r}, ${g}, ${b}, ${a.toFixed(3)})`
 }
 
-/**
- * Only http(s) links are ever emitted. Anything else - javascript:, data:, a
- * stray word - becomes no link at all rather than a clickable surprise in the
- * PDF. A bare domain is upgraded to https.
- */
-function safeUrl(raw: unknown): string {
-  const v = String(raw ?? '').trim()
-  if (!v) return ''
-  if (/^https?:\/\//i.test(v)) return v
-  if (/^[\w.-]+\.[a-z]{2,}(\/|$)/i.test(v)) return `https://${v}`
-  return ''
-}
-
 function formatDate(d: string | null | undefined): string {
   if (!d) return ''
   // Values arrive as YYYY-MM-DD; format without constructing a Date so the
@@ -478,19 +465,12 @@ function renderBlocks(ctx: RenderContext): string {
   // that is the whole point of moving them off the first page.
   const termsOnOwnPage = config.termsPage?.enabled === true && richTextHasContent(invoice.terms)
 
-  if (B.showTerms && !termsOnOwnPage && (invoice.terms || company.terms_url)) {
-    // The published T&Cs are the authority; the printed list is a summary.
-    // Shown as wording, not a raw address: "Full terms & conditions: Terms &
-    // Conditions" reads badly, so the label alone is the link. The href is kept
-    // so it stays clickable in the PDF.
-    const label = (company.terms_link_text ?? '').trim() || 'Terms & Conditions'
-    const href = safeUrl(company.terms_url)
-    const link = href
-      ? `<div class="terms-link"><a href="${escapeHtml(href)}">${escapeHtml(label)}</a></div>`
-      : ''
+  // Any link to published terms is written into the wording itself now, with
+  // the editor's link button, rather than bolted on from a settings field.
+  if (B.showTerms && !termsOnOwnPage && richTextHasContent(invoice.terms)) {
     leftParts.push(
       `<div class="block"><div class="block-label">${escapeHtml(B.termsLabel)}</div>` +
-        `<div>${richBody(invoice.terms)}</div>${link}</div>`
+        `<div>${richBody(invoice.terms)}</div></div>`
     )
   }
   if (B.showBankDetails && company.bank_details) {
@@ -618,12 +598,6 @@ function renderTermsPage(ctx: RenderContext): string {
         : ''}</div>`
     : ''
 
-  const href = T.showTermsLink ? safeUrl(company.terms_url) : ''
-  const label = (company.terms_link_text ?? '').trim() || 'Terms & Conditions'
-  const link = href
-    ? `<div class="tp-link">Full terms &amp; conditions: <a href="${escapeHtml(href)}">${escapeHtml(label)}</a></div>`
-    : ''
-
   const acceptance = T.showAcceptance
     ? `<div class="tp-accept">
          <div class="tp-accept-box">
@@ -638,15 +612,14 @@ function renderTermsPage(ctx: RenderContext): string {
     : ''
 
   return `
-  <section class="terms-page">
+  <div class="sheet terms-sheet">
     ${T.showHeader ? renderHeader(ctx) : ''}
     <h2 class="tp-heading">${escapeHtml(T.heading || 'Terms & Conditions')}</h2>
     ${ref}
     <div class="tp-body">${richBody(invoice.terms)}</div>
-    ${link}
     ${acceptance}
     ${T.showFooter ? renderFooter(ctx) : ''}
-  </section>`
+  </div>`
 }
 
 function renderFooter(ctx: RenderContext): string {
@@ -986,24 +959,12 @@ function renderStyles(ctx: RenderContext): string {
   }
 
   /* ── Terms page ── */
-  .terms-page {
+  /* A sheet of its own: same paper, same margins, its own drop shadow on
+     screen, and always starting a fresh sheet when printed. */
+  .terms-sheet {
     page-break-before: always;
     break-before: page;
-    padding-top: 4mm;
   }
-  /* On screen the preview shows it as a second sheet of paper. */
-  ${mode === 'screen' ? `
-  .terms-page {
-    margin-top: 18px;
-    padding: ${c.page.marginTop}mm ${c.page.marginRight}mm ${c.page.marginBottom}mm ${c.page.marginLeft}mm;
-    background: ${c.page.background};
-    box-shadow: 0 6px 24px rgba(0,0,0,.35);
-    min-height: ${dim.h}mm;
-    width: ${dim.w}mm;
-    margin-left: -${c.page.marginLeft}mm;
-    margin-right: -${c.page.marginRight}mm;
-    box-sizing: border-box;
-  }` : ''}
   .tp-heading {
     margin: 0 0 4px;
     font-size: ${Math.max(10, f.headingSize + 3)}pt;
@@ -1137,8 +1098,7 @@ export function renderInvoiceBody(ctx: RenderContext): string {
     ${renderTotals(ctx)}
     ${renderBlocks(ctx)}
     ${renderFooter(ctx)}
-  </div>
-  ${renderTermsPage(ctx)}`
+  </div>`
 }
 
 /** Complete standalone HTML document. */
@@ -1154,6 +1114,7 @@ export function renderInvoiceHtml(ctx: RenderContext): string {
 </head>
 <body>
 <div class="sheet">${renderInvoiceBody(ctx)}</div>
+${renderTermsPage(ctx)}
 </body>
 </html>`
 }

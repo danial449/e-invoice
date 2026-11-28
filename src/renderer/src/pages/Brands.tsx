@@ -443,25 +443,6 @@ function BrandEditor({
           </div>
         </div>
 
-        <div className="row">
-          <div className="field" style={{ flex: 2 }}>
-            <label>Terms &amp; conditions web address</label>
-            <input
-              value={form.terms_url}
-              onChange={(e) => set('terms_url', e.target.value)}
-              placeholder="https://yourbrand.pk/terms-and-conditions/"
-            />
-          </div>
-          <div className="field">
-            <label>Wording of the link</label>
-            <input
-              value={form.terms_link_text}
-              onChange={(e) => set('terms_link_text', e.target.value)}
-              placeholder="Terms & Conditions"
-            />
-          </div>
-        </div>
-
         <div className="card" style={{ marginBottom: 0 }}>
           <h3 className="card-title">
             Invoice numbering

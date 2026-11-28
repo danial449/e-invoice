@@ -688,11 +688,6 @@ export default function TemplateDesigner(_props: NavProps): React.JSX.Element {
                   checked={config.termsPage?.showFooter !== false}
                   onChange={(v) => patch('termsPage', { showFooter: v })}
                 />
-                <Toggle
-                  label="Show the link to your published terms"
-                  checked={config.termsPage?.showTermsLink !== false}
-                  onChange={(v) => patch('termsPage', { showTermsLink: v })}
-                />
                 <div className="ctl">
                   <label>Layout</label>
                   <select
