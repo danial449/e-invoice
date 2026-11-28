@@ -138,6 +138,14 @@ CI runs the audit on every push against a real PostgreSQL 17 service container.
   reads. `recordEvent` swallows its own errors on purpose: recording history
   must never roll back the thing it is recording. When an invoice is renumbered
   out of `DRAFT-xxxx`, call `renumberEvents` so the trail stays one story.
+- **Rich text is sanitised on both sides.** The editor writes through
+  `shared/richText.ts` and the renderer reads through it again, because the
+  wording ends up in a printed document and a PDF. The editor also forces
+  `styleWithCSS=false`, or Chromium emits `<span style="font-weight:bold">`
+  and the sanitiser - which drops `style` - silently throws the bold away.
+- **The stamp is positioned against `.content`, not `.sheet`.** A terms page
+  lives in the same sheet, so anchoring to the sheet put the stamp on the wrong
+  page and over its heading.
 - **Never commit a database password.** The connect screen starts blank and the
   audit reads `PGPASSWORD` from the environment.
 

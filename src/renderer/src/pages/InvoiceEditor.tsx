@@ -4,6 +4,7 @@ import { CustomerEditor } from './Customers'
 import { Modal, Spinner, useDebounced, useToast } from '../components/ui'
 import InvoicePreview from '../components/InvoicePreview'
 import HistoryTimeline from '../components/HistoryTimeline'
+import RichTextEditor from '../components/RichTextEditor'
 import { computeTotals, formatMoney, formatQty, lineNet, num, round2 } from '@shared/calc'
 import type {
   Brand, CompanySettings, Customer, Invoice, InvoiceItem, InvoiceStatus, InvoiceTemplate,
@@ -79,7 +80,10 @@ export default function InvoiceEditor({ invoiceId, navigate }: EditorProps): Rea
       return true
     }
   })
-  const [fullPreview, setFullPreview] = useState(false)
+  // 'view' is the plain preview; 'print' shows the same thing with a Print
+  // button, because going straight to the printer gave no chance to look.
+  const [fullPreview, setFullPreview] = useState<null | 'view' | 'print'>(null)
+  const [printing, setPrinting] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
   // Bumped whenever something happens that the trail should pick up.
   const [historyTick, setHistoryTick] = useState(0)
@@ -335,10 +339,22 @@ export default function InvoiceEditor({ invoiceId, navigate }: EditorProps): Rea
   const saveAndPrint = async (): Promise<void> => {
     const saved = (await save(status === 'draft' ? 'issued' : status)) ?? savedInvoice
     if (!saved) return
+    // Show it first. Windows opens a printer dialog with no preview of its
+    // own, so printing from here used to be done sight unseen.
+    setFullPreview('print')
+  }
+
+  /** Actually send it to the printer, from the preview. */
+  const printNow = async (): Promise<void> => {
+    if (!savedInvoice) return
+    setPrinting(true)
     try {
-      await api.printInvoice(saved.id, templateId)
+      await api.printInvoice(savedInvoice.id, templateId)
+      setFullPreview(null)
     } catch (err) {
       toast.error(err)
+    } finally {
+      setPrinting(false)
     }
   }
 
@@ -392,7 +408,7 @@ export default function InvoiceEditor({ invoiceId, navigate }: EditorProps): Rea
             </button>
           ) : null}
           <button
-            onClick={() => setFullPreview(true)}
+            onClick={() => setFullPreview('view')}
             title="See the whole invoice at full size, exactly as it will print"
           >
             ⛶ Preview
@@ -906,30 +922,43 @@ export default function InvoiceEditor({ invoiceId, navigate }: EditorProps): Rea
             </div>
           ) : null}
 
-          {/* ── Notes & terms ── */}
+          {/* ── Notes ── */}
           <div className="card">
-            <div className="row">
-              <div className="field">
-                <label>Notes (shown on the invoice)</label>
-                <textarea
-                  value={notes}
-                  onChange={(e) => {
-                    setNotes(e.target.value)
-                    markDirty()
-                  }}
-                />
-              </div>
-              <div className="field">
-                <label>Terms &amp; conditions</label>
-                <textarea
-                  value={terms}
-                  onChange={(e) => {
-                    setTerms(e.target.value)
-                    markDirty()
-                  }}
-                  style={{ minHeight: 100 }}
-                />
-              </div>
+            <div className="field">
+              <label>Notes (shown on the invoice)</label>
+              <RichTextEditor
+                value={notes}
+                onChange={(html) => {
+                  setNotes(html)
+                  markDirty()
+                }}
+                minHeight={90}
+                placeholder="A short line under the totals, e.g. delivery arrangements."
+                ariaLabel="Invoice notes"
+              />
+            </div>
+          </div>
+
+          {/* ── Terms & conditions ── */}
+          <div className="card">
+            <h3 className="card-title">
+              Terms &amp; conditions
+              <span className="count">printed on their own page after the invoice</span>
+            </h3>
+            <RichTextEditor
+              value={terms}
+              onChange={(html) => {
+                setTerms(html)
+                markDirty()
+              }}
+              minHeight={260}
+              placeholder="Type your terms here. Use the toolbar for headings, bold and numbered or bullet points."
+              ariaLabel="Terms and conditions"
+            />
+            <div className="help">
+              These terms belong to <strong>this invoice only</strong> — change them here without
+              affecting any other. New invoices start from the brand&apos;s default terms.
+              Formatting is kept exactly as you see it.
             </div>
           </div>
         </div>
@@ -972,16 +1001,41 @@ export default function InvoiceEditor({ invoiceId, navigate }: EditorProps): Rea
 
       {fullPreview ? (
         <Modal
-          title={`Preview — ${invoiceNo}${activeTemplate ? ` · ${activeTemplate.name}` : ''}`}
-          onClose={() => setFullPreview(false)}
+          title={`${fullPreview === 'print' ? 'Print preview' : 'Preview'} — ${invoiceNo}${
+            activeTemplate ? ` · ${activeTemplate.name}` : ''
+          }`}
+          onClose={() => setFullPreview(null)}
           size="wide"
           className="preview-modal"
+          footer={
+            fullPreview === 'print' ? (
+              <>
+                <button onClick={() => setFullPreview(null)}>Cancel</button>
+                <button
+                  className="ml-auto"
+                  onClick={() => void saveAndPdf()}
+                  disabled={printing || saving}
+                >
+                  ⇩ Save as PDF
+                </button>
+                <button
+                  className="btn-primary"
+                  onClick={() => void printNow()}
+                  disabled={printing}
+                >
+                  {printing ? <span className="spinner" /> : null} ⎙ Print now
+                </button>
+              </>
+            ) : undefined
+          }
         >
           <div className="full-preview">
             <InvoicePreview invoice={draft} config={activeTemplate?.config ?? null} debounceMs={150} />
           </div>
           <p className="small muted mt8 mb0">
-            This is exactly what Print and Save PDF produce. Close this to keep editing.
+            {fullPreview === 'print'
+              ? 'Scroll to check every page, including the terms, then send it to the printer.'
+              : 'This is exactly what Print and Save PDF produce. Close this to keep editing.'}
           </p>
         </Modal>
       ) : null}

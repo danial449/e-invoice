@@ -657,6 +657,87 @@ export default function TemplateDesigner(_props: NavProps): React.JSX.Element {
             ) : null}
           </Accordion>
 
+          {/* ── Terms page ── */}
+          <Accordion title="Terms page" icon="▤">
+            <Toggle
+              label="Print the terms on their own page"
+              checked={config.termsPage?.enabled !== false}
+              onChange={(v) => patch('termsPage', { enabled: v })}
+              help="On by default. The terms move off the first page onto a sheet of their own after the invoice, so page one stays about the goods and the money."
+            />
+            {config.termsPage?.enabled !== false ? (
+              <>
+                <TextField
+                  label="Page heading"
+                  value={config.termsPage?.heading ?? 'Terms & Conditions'}
+                  onChange={(v) => patch('termsPage', { heading: v })}
+                />
+                <Toggle
+                  label="Show the invoice number and date"
+                  checked={config.termsPage?.showInvoiceRef !== false}
+                  onChange={(v) => patch('termsPage', { showInvoiceRef: v })}
+                  help="So a page that gets separated can still be traced back."
+                />
+                <Toggle
+                  label="Repeat the header band"
+                  checked={config.termsPage?.showHeader === true}
+                  onChange={(v) => patch('termsPage', { showHeader: v })}
+                />
+                <Toggle
+                  label="Repeat the footer"
+                  checked={config.termsPage?.showFooter !== false}
+                  onChange={(v) => patch('termsPage', { showFooter: v })}
+                />
+                <Toggle
+                  label="Show the link to your published terms"
+                  checked={config.termsPage?.showTermsLink !== false}
+                  onChange={(v) => patch('termsPage', { showTermsLink: v })}
+                />
+                <div className="ctl">
+                  <label>Layout</label>
+                  <select
+                    value={String(config.termsPage?.columns ?? 1)}
+                    onChange={(e) => patch('termsPage', { columns: Number(e.target.value) === 2 ? 2 : 1 })}
+                  >
+                    <option value="1">One column</option>
+                    <option value="2">Two columns</option>
+                  </select>
+                  <div className="help">Two columns fit a long numbered list onto one sheet.</div>
+                </div>
+                <Slider
+                  label="Text size"
+                  unit="pt"
+                  min={6}
+                  max={12}
+                  step={0.5}
+                  value={config.termsPage?.fontSize ?? 8.5}
+                  onChange={(v) => patch('termsPage', { fontSize: v })}
+                />
+                <Slider
+                  label="Line spacing"
+                  min={1}
+                  max={2.2}
+                  step={0.1}
+                  value={config.termsPage?.lineHeight ?? 1.5}
+                  onChange={(v) => patch('termsPage', { lineHeight: v })}
+                />
+                <Toggle
+                  label="Leave room for the customer to sign"
+                  checked={config.termsPage?.showAcceptance === true}
+                  onChange={(v) => patch('termsPage', { showAcceptance: v })}
+                  help="Adds a signature and date line at the foot of the terms."
+                />
+                {config.termsPage?.showAcceptance ? (
+                  <TextField
+                    label="Signature label"
+                    value={config.termsPage?.acceptanceLabel ?? 'Accepted on behalf of the customer'}
+                    onChange={(v) => patch('termsPage', { acceptanceLabel: v })}
+                  />
+                ) : null}
+              </>
+            ) : null}
+          </Accordion>
+
           {/* ── Stamp ── */}
           <Accordion title="Stamp" icon="◉">
             <Toggle

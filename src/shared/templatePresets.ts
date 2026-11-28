@@ -121,6 +121,19 @@ export const BASE_CONFIG: TemplateConfig = {
     paymentTint: 8,
     spaceAfter: 14
   },
+  termsPage: {
+    enabled: true,
+    heading: 'Terms & Conditions',
+    showHeader: false,
+    showFooter: true,
+    showInvoiceRef: true,
+    showTermsLink: true,
+    fontSize: 8.5,
+    lineHeight: 1.5,
+    columns: 1,
+    showAcceptance: false,
+    acceptanceLabel: 'Accepted on behalf of the customer'
+  },
   footer: {
     enabled: true,
     showOnAllPages: true,

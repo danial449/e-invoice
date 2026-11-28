@@ -96,6 +96,19 @@ const item = (p: Partial<InvoiceItem>): InvoiceItem => ({
   const pays = await invoices.listPayments(inv.id)
   const cfg = JSON.parse(JSON.stringify(TEMPLATE_PRESETS[0].config))
   cfg.totals.showAmountInWords = true
+  // Rich terms, so the dedicated page has something real on it.
+  final!.terms =
+    '<h2>Payment</h2>' +
+    '<ol><li>50% advance is required with every custom printed order.</li>' +
+    '<li>The balance is due before dispatch unless credit terms are agreed in writing.</li>' +
+    '<li>Prices are quoted in PKR and hold for <b>15 days</b> from the date of this invoice.</li></ol>' +
+    '<h2>Delivery</h2>' +
+    '<ul><li>Courier charges are adjusted against parcel size, weight and destination.</li>' +
+    '<li>Lead time runs from approval of the artwork, not from the order date.</li></ul>' +
+    '<h2>Returns</h2>' +
+    '<p>Custom printed goods are <b>not returnable</b> once production has begun. ' +
+    'Manufacturing faults are replaced free of charge when reported within 7 days of delivery.</p>'
+
   cfg.stamp = {
     enabled: true, design: 'auto', imageDataUrl: '', color: '#000000', width: 160,
     opacity: 0.9, rotation: -12, position: (process.env.STAMP_POS as never) || 'middle-left', offsetX: 0, offsetY: 0,

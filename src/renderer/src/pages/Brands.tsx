@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { api } from '../lib/api'
 import { ConfirmDialog, Empty, Modal, Spinner, useToast } from '../components/ui'
 import SignaturePad from '../components/SignaturePad'
+import RichTextEditor from '../components/RichTextEditor'
 import { formatInvoiceNoPreview } from '../lib/format'
 import type { Brand, BrandInput } from '@shared/types'
 
@@ -416,18 +417,29 @@ function BrandEditor({
           />
         </div>
 
-        <div className="row">
-          <div className="field">
-            <label>Default notes</label>
-            <textarea value={form.default_notes} onChange={(e) => set('default_notes', e.target.value)} />
-          </div>
-          <div className="field">
-            <label>Default terms &amp; conditions</label>
-            <textarea
-              value={form.default_terms}
-              onChange={(e) => set('default_terms', e.target.value)}
-              style={{ minHeight: 96 }}
-            />
+        <div className="field">
+          <label>Default notes</label>
+          <RichTextEditor
+            value={form.default_notes}
+            onChange={(html) => set('default_notes', html)}
+            minHeight={80}
+            placeholder="Shown under the totals on new invoices."
+            ariaLabel="Default notes"
+          />
+        </div>
+
+        <div className="field">
+          <label>Default terms &amp; conditions</label>
+          <RichTextEditor
+            value={form.default_terms}
+            onChange={(html) => set('default_terms', html)}
+            minHeight={200}
+            placeholder="Headings, bold and numbered points are all kept. New invoices for this brand start from these."
+            ariaLabel="Default terms and conditions"
+          />
+          <div className="help">
+            Printed on a page of their own after the invoice. Each invoice can then be changed
+            without affecting this default.
           </div>
         </div>
 

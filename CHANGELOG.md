@@ -3,6 +3,50 @@
 All notable changes to E-Invoice. Versions follow
 [semantic versioning](https://semver.org): `MAJOR.MINOR.PATCH`.
 
+## [1.8.0] - 2026-11-28
+
+### Added
+
+- **Terms print on a page of their own.** They no longer share the foot of the
+  first page with the notes and payment details - that row is down to two
+  blocks, and the first page stays about the goods and the money. The terms
+  follow on a fresh sheet with a heading, the invoice number, date and customer
+  so a page that gets separated can still be traced back, and the link to your
+  published terms at the end.
+
+  Under **Invoice Templates - Terms page** you can change the heading, switch
+  to two columns for long numbered lists, set the text size and line spacing,
+  repeat the header or footer, and add a signature and date strip for the
+  customer to accept the terms. Turning the page off puts the terms back where
+  they were.
+
+- **A proper editor for the terms.** Bold, italic, underline, strikethrough,
+  headings, bullet and numbered lists, indent, quotes, alignment, dividers and
+  links - with the formatting carried through exactly onto the printed page.
+  The same editor is used for the invoice notes and for a brand's default
+  terms, so a new invoice starts from formatted wording.
+
+  **Each invoice keeps its own terms.** Editing them on one invoice never
+  touches another, and never changes the brand default they started from.
+
+  Pasted content is cleaned on the way in: scripts, event handlers, styles,
+  images and anything else off the allow-list are stripped, so a paste out of
+  Word or a web page cannot carry anything into a document you send a customer.
+
+### Changed
+
+- **Print shows the invoice before printing it.** Clicking Print now opens a
+  full-size preview with **Print now**, **Save as PDF** and **Cancel**, so you
+  can scroll through every page - including the terms - before anything reaches
+  the printer. Windows opens a printer dialog with no preview of its own, so
+  printing from here was previously done sight unseen.
+
+### Fixed
+
+- The stamp was positioned against the whole document rather than the invoice,
+  so once a terms page followed it the stamp landed on that page and covered
+  its heading.
+
 ## [1.7.0] - 2026-11-24
 
 ### Changed

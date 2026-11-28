@@ -13,6 +13,7 @@ place, see [INSTALL.md](INSTALL.md).
 - [Invoice history](#invoice-history)
 - [Stamps](#stamps)
 - [Your signature](#your-signature)
+- [Terms & conditions](#terms--conditions)
 - [Printing and PDFs](#printing-and-pdfs)
 - [Invoice templates](#invoice-templates)
 - [Reports](#reports)
@@ -384,6 +385,43 @@ another, or to keep one template deliberately unsigned for printing and signing
 by hand.
 
 Remember to press **Save** afterwards - drawing alone does not save the setting.
+
+## Terms & conditions
+
+Terms print on **a page of their own**, after the invoice. The first page stays
+about the goods and the money; the terms get the room they need.
+
+### Writing them
+
+The terms box on an invoice is a proper editor. The toolbar gives you bold,
+italic, underline and strikethrough; headings and sub-headings; bullet and
+numbered lists; indent and outdent; quotes; alignment; a divider; and links.
+What you see in the editor is what prints.
+
+**Every invoice has its own terms.** Change them on one invoice and no other
+invoice is affected. A new invoice starts from its brand's default terms, which
+you set under **Settings - Brands** using the same editor, so the wording and
+formatting carry over.
+
+Pasting from Word or a web page is safe: the formatting that matters is kept
+and everything else is discarded.
+
+### The page itself
+
+**Invoice Templates - Terms page** controls it:
+
+| Setting | What it does |
+|---|---|
+| Print the terms on their own page | On by default. Off puts them back at the foot of page one |
+| Page heading | Default *Terms & Conditions* |
+| Show the invoice number and date | So a separated page can be traced back |
+| Repeat the header / footer | Carry the letterhead or page numbers onto the page |
+| Show the link to your published terms | Printed at the end |
+| Layout | One or two columns - two fits a long numbered list on one sheet |
+| Text size, line spacing | For fitting long terms |
+| Leave room for the customer to sign | Adds a signature and date strip |
+
+An invoice with no terms gets no blank page.
 
 ## Printing and PDFs
 

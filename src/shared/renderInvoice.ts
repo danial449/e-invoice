@@ -2,6 +2,7 @@ import type {
   Align, CompanySettings, InvoiceWithItems, Payment, TemplateConfig, TemplateColumn
 } from './types'
 import { amountInWords, computeTotals, formatMoney, formatQty, num, round2 } from './calc'
+import { isRichText, richTextHasContent, sanitizeRichText } from './richText'
 
 const PAGE_MM: Record<string, { w: number; h: number }> = {
   A4: { w: 210, h: 297 },
@@ -25,6 +26,14 @@ export function escapeHtml(s: unknown): string {
 }
 
 /** Escape, then turn newlines into <br> so multi-line fields keep their shape. */
+/**
+ * Wording typed in the editor. Stored rich text is sanitised and used as
+ * markup; anything older, typed as plain text, keeps its line breaks.
+ */
+function richBody(value: unknown): string {
+  return isRichText(value) ? sanitizeRichText(value) : multiline(value)
+}
+
 function multiline(s: unknown): string {
   return escapeHtml(s).replace(/\r?\n/g, '<br>')
 }
@@ -463,9 +472,13 @@ function renderBlocks(ctx: RenderContext): string {
   const leftParts: string[] = []
 
   if (B.showNotes && invoice.notes) {
-    leftParts.push(`<div class="block"><div class="block-label">${escapeHtml(B.notesLabel)}</div><div>${multiline(invoice.notes)}</div></div>`)
+    leftParts.push(`<div class="block"><div class="block-label">${escapeHtml(B.notesLabel)}</div><div>${richBody(invoice.notes)}</div></div>`)
   }
-  if (B.showTerms && (invoice.terms || company.terms_url)) {
+  // When the terms have a page of their own, they are not repeated here -
+  // that is the whole point of moving them off the first page.
+  const termsOnOwnPage = config.termsPage?.enabled === true && richTextHasContent(invoice.terms)
+
+  if (B.showTerms && !termsOnOwnPage && (invoice.terms || company.terms_url)) {
     // The published T&Cs are the authority; the printed list is a summary.
     // Shown as wording, not a raw address: "Full terms & conditions: Terms &
     // Conditions" reads badly, so the label alone is the link. The href is kept
@@ -477,7 +490,7 @@ function renderBlocks(ctx: RenderContext): string {
       : ''
     leftParts.push(
       `<div class="block"><div class="block-label">${escapeHtml(B.termsLabel)}</div>` +
-        `<div>${multiline(invoice.terms)}</div>${link}</div>`
+        `<div>${richBody(invoice.terms)}</div>${link}</div>`
     )
   }
   if (B.showBankDetails && company.bank_details) {
@@ -585,6 +598,57 @@ function stampTransform(S: NonNullable<TemplateConfig['stamp']>): string {
   return `translate(${x}, ${S.offsetY}px) rotate(${S.rotation}deg)`
 }
 
+/**
+ * The terms, on a page of their own after the invoice.
+ *
+ * Kept deliberately plain: a heading, the wording, optionally the invoice it
+ * belongs to and a signature strip. The page break is `always` so it never
+ * shares a sheet with the totals.
+ */
+function renderTermsPage(ctx: RenderContext): string {
+  const { invoice, company, config } = ctx
+  const T = config.termsPage
+  if (!T || !T.enabled) return ''
+  if (!richTextHasContent(invoice.terms)) return ''
+
+  const ref = T.showInvoiceRef
+    ? `<div class="tp-ref">${escapeHtml(invoice.invoice_no)} &middot; ${escapeHtml(formatDate(invoice.invoice_date))}` +
+      `${invoice.customer_snapshot && (invoice.customer_snapshot as Record<string, unknown>).name
+        ? ` &middot; ${escapeHtml(String((invoice.customer_snapshot as Record<string, unknown>).company || (invoice.customer_snapshot as Record<string, unknown>).name))}`
+        : ''}</div>`
+    : ''
+
+  const href = T.showTermsLink ? safeUrl(company.terms_url) : ''
+  const label = (company.terms_link_text ?? '').trim() || 'Terms & Conditions'
+  const link = href
+    ? `<div class="tp-link">Full terms &amp; conditions: <a href="${escapeHtml(href)}">${escapeHtml(label)}</a></div>`
+    : ''
+
+  const acceptance = T.showAcceptance
+    ? `<div class="tp-accept">
+         <div class="tp-accept-box">
+           <div class="tp-accept-line"></div>
+           <div class="tp-accept-label">${escapeHtml(T.acceptanceLabel)}</div>
+         </div>
+         <div class="tp-accept-box">
+           <div class="tp-accept-line"></div>
+           <div class="tp-accept-label">Date</div>
+         </div>
+       </div>`
+    : ''
+
+  return `
+  <section class="terms-page">
+    ${T.showHeader ? renderHeader(ctx) : ''}
+    <h2 class="tp-heading">${escapeHtml(T.heading || 'Terms & Conditions')}</h2>
+    ${ref}
+    <div class="tp-body">${richBody(invoice.terms)}</div>
+    ${link}
+    ${acceptance}
+    ${T.showFooter ? renderFooter(ctx) : ''}
+  </section>`
+}
+
 function renderFooter(ctx: RenderContext): string {
   const F = ctx.config.footer
   if (!F.enabled) return ''
@@ -644,6 +708,11 @@ function renderStyles(ctx: RenderContext): string {
   // floating directly under a short item list.
   const footerSticky = c.footer.enabled && c.footer.stickToBottom !== false
   const footerRepeats = c.footer.showOnAllPages || footerSticky
+
+  const T = c.termsPage
+  const termsSize = Math.max(6, T?.fontSize ?? 8.5)
+  const termsLead = Math.max(1, T?.lineHeight ?? 1.5)
+  const termsCols = T?.columns === 2 ? 2 : 1
 
   const borderAll = c.table.borders === 'all'
   const borderH = c.table.borders === 'horizontal'
@@ -916,7 +985,79 @@ function renderStyles(ctx: RenderContext): string {
     .content-pad { padding-bottom: ${c.footer.enabled && footerRepeats ? 28 : 0}px; }
   }
 
+  /* ── Terms page ── */
+  .terms-page {
+    page-break-before: always;
+    break-before: page;
+    padding-top: 4mm;
+  }
+  /* On screen the preview shows it as a second sheet of paper. */
+  ${mode === 'screen' ? `
+  .terms-page {
+    margin-top: 18px;
+    padding: ${c.page.marginTop}mm ${c.page.marginRight}mm ${c.page.marginBottom}mm ${c.page.marginLeft}mm;
+    background: ${c.page.background};
+    box-shadow: 0 6px 24px rgba(0,0,0,.35);
+    min-height: ${dim.h}mm;
+    width: ${dim.w}mm;
+    margin-left: -${c.page.marginLeft}mm;
+    margin-right: -${c.page.marginRight}mm;
+    box-sizing: border-box;
+  }` : ''}
+  .tp-heading {
+    margin: 0 0 4px;
+    font-size: ${Math.max(10, f.headingSize + 3)}pt;
+    color: ${c.docTitle.color};
+    letter-spacing: .4px;
+  }
+  .tp-ref {
+    font-size: ${Math.max(6, f.baseSize - 1)}pt;
+    color: ${f.mutedColor};
+    margin-bottom: 9px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid ${col.border};
+  }
+  .tp-body {
+    font-size: ${termsSize}pt;
+    line-height: ${termsLead};
+    ${termsCols > 1 ? `column-count: ${termsCols}; column-gap: 9mm;` : ''}
+  }
+  .tp-body p { margin: 0 0 ${Math.round(termsLead * 3)}px; }
+  .tp-body ul, .tp-body ol { margin: 0 0 ${Math.round(termsLead * 3)}px; padding-left: 16px; }
+  .tp-body li { margin-bottom: ${Math.round(termsLead * 1.6)}px; break-inside: avoid; }
+  .tp-body h1, .tp-body h2, .tp-body h3, .tp-body h4 {
+    font-size: ${Math.max(7.5, termsSize + 1)}pt;
+    margin: ${Math.round(termsLead * 5)}px 0 ${Math.round(termsLead * 2)}px;
+    break-after: avoid;
+  }
+  .tp-body blockquote {
+    margin: 0 0 ${Math.round(termsLead * 3)}px;
+    padding-left: 8px;
+    border-left: 2px solid ${col.border};
+    color: ${f.mutedColor};
+  }
+  .tp-body a { color: inherit; text-decoration: underline; }
+  .tp-body table { width: 100%; border-collapse: collapse; margin-bottom: 6px; }
+  .tp-body th, .tp-body td { border: 1px solid ${col.border}; padding: 3px 5px; text-align: left; }
+  .tp-link {
+    margin-top: 10px;
+    font-size: ${Math.max(6, termsSize - 0.5)}pt;
+    color: ${f.mutedColor};
+  }
+  .tp-link a { color: inherit; text-decoration: underline; }
+  .tp-accept { display: flex; gap: 18px; margin-top: 16mm; break-inside: avoid; }
+  .tp-accept-box { flex: 1; }
+  .tp-accept-line { border-bottom: 1px solid ${f.color}; height: 16px; }
+  .tp-accept-label {
+    font-size: ${Math.max(6, f.baseSize - 1)}pt;
+    color: ${f.mutedColor};
+    margin-top: 3px;
+  }
+
   /* ── Stamp ── */
+  /* Positioned against the invoice itself, so a terms page following it is
+     never stamped and never has its heading covered. */
+  .content { position: relative; }
   .stamp {
     position: absolute;
     z-index: 5;
@@ -988,15 +1129,16 @@ function renderStyles(ctx: RenderContext): string {
 export function renderInvoiceBody(ctx: RenderContext): string {
   return `
   ${renderWatermark(ctx)}
-  ${renderStamp(ctx)}
   <div class="content content-pad">
+    ${renderStamp(ctx)}
     ${renderHeader(ctx)}
     ${renderParties(ctx)}
     ${renderTable(ctx)}
     ${renderTotals(ctx)}
     ${renderBlocks(ctx)}
     ${renderFooter(ctx)}
-  </div>`
+  </div>
+  ${renderTermsPage(ctx)}`
 }
 
 /** Complete standalone HTML document. */

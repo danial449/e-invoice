@@ -18,6 +18,7 @@ import * as settings from '../src/main/services/settings'
 import * as reports from '../src/main/services/reports'
 import * as csv from '../src/main/services/csv'
 import * as brandsSvc from '../src/main/services/brands'
+import { sanitizeRichText, isRichText, richTextToPlain } from '../src/shared/richText'
 import { renderInvoiceHtml } from '../src/shared/renderInvoice'
 import {
   amountInWords, computeTotals, formatMoney, formatQty, lineNet, linePieces,
@@ -819,11 +820,18 @@ async function main(): Promise<void> {
   })
 
   const unpaidId = await newInvoice('issued', 1000)
-  await check('the terms link is printed under the terms block', async () => {
-    const html = await renderWith(unpaidId)
-    ok(/class="terms-link"><a href="/.test(html), 'rendered as a link')
-    ok(html.includes('packagingbox.pk/terms-and-conditions'), 'pointing at the terms page')
-    ok(/>[^<]*Terms &amp; Conditions<\/a>/.test(html), 'the wording is the link text, not the address')
+  await check('the terms link is printed with the terms, wherever they are', async () => {
+    // With a terms page the link belongs there; without one it sits under the
+    // terms block on the first page. Either way it is wording, not an address.
+    const onPage = await renderWith(unpaidId)
+    ok(/class="tp-link"/.test(onPage), 'printed on the terms page')
+    ok(onPage.includes('packagingbox.pk/terms-and-conditions'), 'pointing at the terms page')
+    ok(/>[^<]*Terms &amp; Conditions<\/a>/.test(onPage), 'the wording is the link text')
+
+    const inBlocks = await renderWith(unpaidId, (c) => {
+      ;(c as Record<string, Record<string, unknown>>).termsPage.enabled = false
+    })
+    ok(/class="terms-link"><a href="/.test(inBlocks), 'and under the block when there is no page')
   })
 
   await check('an unpaid invoice shows the UNPAID band with the amount due', async () => {
@@ -1758,6 +1766,158 @@ async function main(): Promise<void> {
     } catch (e) {
       ok(!/accepted/.test(String(e)), 'should refuse')
     }
+  })
+
+  // ----------- 17. Terms page & rich text -----------
+  g('Rich text safety')
+
+  await check('scripts and handlers never survive into an invoice', () => {
+    const dirty = '<p>Pay in <b>7 days</b></p><script>alert(1)</script>' +
+      '<img src=x onerror="alert(2)"><p onclick="steal()">Clause</p>'
+    const clean = sanitizeRichText(dirty)
+    ok(!/<script/i.test(clean), 'script element removed')
+    ok(!/onerror/i.test(clean), 'inline handler removed')
+    ok(!/onclick/i.test(clean), 'handler attribute removed')
+    ok(!/<img/i.test(clean), 'image dropped - it is not on the allow-list')
+    ok(clean.includes('<b>7 days</b>'), 'the formatting that matters is kept')
+    ok(clean.includes('Clause'), 'and the wording survives')
+  })
+
+  await check('styles, iframes and comments are stripped whole', () => {
+    const clean = sanitizeRichText(
+      '<style>body{display:none}</style><iframe src="http://x"></iframe><!-- hi --><p>Real</p>'
+    )
+    ok(!/<style|<iframe|<!--/i.test(clean), 'all gone')
+    eq(clean.trim(), '<p>Real</p>')
+  })
+
+  await check('only ordinary links stay clickable', () => {
+    ok(sanitizeRichText('<a href="https://x.pk/t">T</a>').includes('href="https://x.pk/t"'), 'https kept')
+    ok(sanitizeRichText('<a href="mailto:a@b.pk">M</a>').includes('mailto:'), 'mailto kept')
+    const js = sanitizeRichText('<a href="javascript:alert(1)">X</a>')
+    ok(!/javascript:/i.test(js), 'javascript: refused')
+    ok(js.includes('X'), 'but the text stays')
+    ok(sanitizeRichText('<a href="packagingbox.pk/t">T</a>').includes('https://packagingbox.pk/t'),
+      'a bare domain is upgraded')
+  })
+
+  await check('lists and headings survive, which is the point of the editor', () => {
+    const clean = sanitizeRichText('<h2>Payment</h2><ol><li>50% advance</li><li>Balance on delivery</li></ol>')
+    ok(clean.includes('<h2>Payment</h2>'), 'heading')
+    ok(clean.includes('<ol>'), 'numbered list')
+    eq((clean.match(/<li>/g) ?? []).length, 2, 'both points')
+  })
+
+  await check('plain typing is told apart from rich text', () => {
+    eq(isRichText('1. Pay in 7 days\n2. No returns'), false, 'plain lines')
+    eq(isRichText('<ol><li>Pay in 7 days</li></ol>'), true, 'markup')
+  })
+
+  await check('rich text can be read back as plain lines', () => {
+    const plain = richTextToPlain('<h2>Terms</h2><ul><li>One</li><li>Two</li></ul>')
+    ok(plain.includes('Terms'), 'heading text')
+    ok(plain.includes('\u2022 One'), 'bullets marked: ' + JSON.stringify(plain))
+  })
+
+  g('Terms page')
+
+  const RICH_TERMS =
+    '<h2>Payment</h2><ol><li>50% advance with the order.</li>' +
+    '<li>Balance before dispatch.</li></ol><p>Prices valid <b>15 days</b>.</p>'
+
+  const termsInvoice = async (terms: string): Promise<number> => {
+    const inv = await invoices.saveInvoice({
+      invoice_date: '2026-08-01', due_date: null, customer_id: cid, template_id: null,
+      po_number: '', discount_type: 'amount', discount_value: 0, tax_enabled: false,
+      shipping: 0, round_off: 0, paid_amount: 0, status: 'issued', notes: '', terms,
+      items: [item({ name: 'Terms page line', qty: 1, unit_price: 100 })]
+    } as never)
+    return inv.id
+  }
+
+  let richId = 0
+  await check('the terms print on a page of their own, not on page one', async () => {
+    richId = await termsInvoice(RICH_TERMS)
+    const html = await renderWith(richId)
+    ok(html.includes('class="terms-page"'), 'a terms page exists')
+    ok(/page-break-before: always/.test(html), 'and it starts on a new sheet')
+
+    // The wording must appear once, on that page - not also in the blocks row.
+    const occurrences = (html.match(/50% advance with the order/g) ?? []).length
+    eq(occurrences, 1, 'the terms are not repeated on the first page')
+
+    const blockLabel = (html.match(/block-label">Terms &amp; Conditions/g) ?? []).length
+    eq(blockLabel, 0, 'the first-page terms block is gone')
+  })
+
+  await check('the formatting is carried through to the page', async () => {
+    const html = await renderWith(richId)
+    ok(html.includes('<h2>Payment</h2>'), 'heading kept')
+    ok(html.includes('<ol>'), 'numbered list kept')
+    ok(html.includes('<b>15 days</b>'), 'bold kept')
+  })
+
+  await check('the page carries its heading and the invoice it belongs to', async () => {
+    const html = await renderWith(richId)
+    ok(/tp-heading">Terms &amp; Conditions</.test(html), 'heading printed')
+    ok(/class="tp-ref"/.test(html), 'invoice reference printed')
+    const inv = await invoices.getInvoice(richId)
+    ok(html.includes(inv!.invoice_no), 'with the number on it')
+  })
+
+  await check('turning the terms page off puts them back on page one', async () => {
+    const html = await renderWith(richId, (c) => {
+      ;(c as Record<string, Record<string, unknown>>).termsPage.enabled = false
+    })
+    ok(!html.includes('class="terms-page"'), 'no separate page')
+    ok(html.includes('50% advance with the order'), 'the terms still print somewhere')
+    ok(/block-label">Terms &amp; Conditions/.test(html), 'back in the blocks row')
+  })
+
+  await check('an invoice with no terms gets no empty page', async () => {
+    const blankId = await termsInvoice('')
+    const html = await renderWith(blankId)
+    ok(!html.includes('class="terms-page"'), 'nothing printed')
+    const spaces = await renderWith(blankId, (c) => {
+      ;(c as Record<string, Record<string, unknown>>).termsPage.enabled = true
+    })
+    ok(!spaces.includes('class="terms-page"'), 'and still nothing when it is only whitespace')
+  })
+
+  await check('terms typed as plain text still work, from before the editor', async () => {
+    const plainId = await termsInvoice('1. Pay in 7 days\n2. No returns after 30 days')
+    const html = await renderWith(plainId)
+    ok(html.includes('class="terms-page"'), 'they get the page too')
+    ok(html.includes('Pay in 7 days'), 'wording kept')
+    ok(html.includes('<br>'), 'line breaks preserved rather than run together')
+  })
+
+  await check('dangerous terms cannot reach the printed page', async () => {
+    const nastyId = await termsInvoice('<p>Fine print</p><script>alert(1)</script>')
+    const html = await renderWith(nastyId)
+    ok(html.includes('Fine print'), 'the wording prints')
+    ok(!/<script>alert/.test(html), 'the script does not')
+  })
+
+  await check('the acceptance strip appears only when asked for', async () => {
+    const off = await renderWith(richId)
+    ok(!off.includes('<div class="tp-accept">'), 'off by default')
+    const on = await renderWith(richId, (c) => {
+      const t = (c as Record<string, Record<string, unknown>>).termsPage
+      t.showAcceptance = true
+      t.acceptanceLabel = 'Signed for the buyer'
+    })
+    ok(on.includes('<div class="tp-accept">'), 'strip printed')
+    ok(on.includes('Signed for the buyer'), 'with the wording asked for')
+  })
+
+  await check('each invoice keeps its own terms', async () => {
+    const a = await termsInvoice('<p>Terms for invoice A</p>')
+    const b = await termsInvoice('<p>Terms for invoice B</p>')
+    const htmlA = await renderWith(a)
+    const htmlB = await renderWith(b)
+    ok(htmlA.includes('Terms for invoice A') && !htmlA.includes('invoice B'), 'A keeps its own')
+    ok(htmlB.includes('Terms for invoice B') && !htmlB.includes('invoice A'), 'B keeps its own')
   })
 
   // ═══════════ teardown ═══════════

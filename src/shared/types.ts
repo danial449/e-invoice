@@ -379,6 +379,34 @@ export interface TemplateConfig {
     hideOnDraft?: boolean
   }
 
+  /**
+   * Terms printed on a page of their own, after the invoice, instead of
+   * squeezed into the blocks row at the foot of page one. Long terms belong
+   * here; the first page stays about the goods and the money.
+   */
+  termsPage?: {
+    enabled: boolean
+    /** Heading at the top of the page. */
+    heading: string
+    /** Repeat the invoice header band on the terms page. */
+    showHeader: boolean
+    /** Repeat the footer, so page numbers continue. */
+    showFooter: boolean
+    /** Print the invoice number and date under the heading. */
+    showInvoiceRef: boolean
+    /** Print the link to the published terms at the end. */
+    showTermsLink: boolean
+    /** Body size on this page, in points. */
+    fontSize: number
+    /** Space between paragraphs and list items. */
+    lineHeight: number
+    /** Two columns suit long numbered lists on A4. */
+    columns: 1 | 2
+    /** Leave room for the customer to sign their acceptance. */
+    showAcceptance: boolean
+    acceptanceLabel: string
+  }
+
   // ── Footer ──
   footer: {
     enabled: boolean
